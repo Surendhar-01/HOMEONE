@@ -13,10 +13,7 @@ export const BUCKETS = {
 export type BucketName = (typeof BUCKETS)[keyof typeof BUCKETS];
 
 const ALLOWED_MIME: Record<BucketName, { images: string[]; documents: string[] }> = {
-  [BUCKETS.profilePhotos]: {
-    images: ['image/jpeg', 'image/jpg', 'image/png'],
-    documents: [],
-  },
+  [BUCKETS.profilePhotos]: { images: ['image/jpeg', 'image/jpg', 'image/png'], documents: [] },
   [BUCKETS.providerDocuments]: {
     images: ['image/jpeg', 'image/jpg', 'image/png'],
     documents: ['application/pdf'],
@@ -52,8 +49,7 @@ export class StorageService {
     bucket: BucketName,
     file: Express.Multer.File,
   ): Promise<UploadedObject> {
-    const allowed = ALLOWED_MIME[bucket].images;
-    return this.upload(userId, bucket, file, allowed, 'image');
+    return this.upload(userId, bucket, file, ALLOWED_MIME[bucket].images, 'image');
   }
 
   async uploadDocument(
@@ -61,8 +57,13 @@ export class StorageService {
     bucket: BucketName,
     file: Express.Multer.File,
   ): Promise<UploadedObject> {
-    const allowed = [...ALLOWED_MIME[bucket].images, ...ALLOWED_MIME[bucket].documents];
-    return this.upload(userId, bucket, file, allowed, 'document');
+    return this.upload(
+      userId,
+      bucket,
+      file,
+      [...ALLOWED_MIME[bucket].images, ...ALLOWED_MIME[bucket].documents],
+      'document',
+    );
   }
 
   private async upload(
@@ -70,25 +71,23 @@ export class StorageService {
     bucket: BucketName,
     file: Express.Multer.File,
     allowedMime: string[],
-    prefix: string,
+    kind: 'image' | 'document',
   ): Promise<UploadedObject> {
     const mime = (file.mimetype || '').toLowerCase();
     if (!allowedMime.includes(mime)) {
       throw new Error(`Unsupported file type. Allowed: ${allowedMime.join(', ')}.`);
     }
 
-    const limits =
-      prefix === 'image'
+    const limit =
+      kind === 'image'
         ? this.config.get<number>('app.upload.maxImageBytes', 5 * 1024 * 1024)
         : this.config.get<number>('app.upload.maxDocumentBytes', 10 * 1024 * 1024);
 
-    if (file.size > limits) {
-      const limitMb = Math.round(limits / (1024 * 1024));
-      throw new Error(`File is larger than the ${limitMb} MB limit.`);
+    if (file.size > limit) {
+      throw new Error(`File is larger than the ${Math.round(limit / (1024 * 1024))} MB limit.`);
     }
 
-    const extension = this.extensionFor(mime);
-    const path = `${userId}/${prefix}/${randomUUID()}${extension}`;
+    const path = `${userId}/${kind}/${randomUUID()}${this.extensionFor(mime)}`;
 
     const { error } = await this.client.storage.from(bucket).upload(path, file.buffer, {
       contentType: mime,
@@ -104,7 +103,11 @@ export class StorageService {
   }
 
   /** Short-lived signed URL. Never cache these on the client. */
-  async createSignedUrl(bucket: BucketName, path: string, expiresInSeconds = 300): Promise<string> {
+  async createSignedUrl(
+    bucket: BucketName,
+    path: string,
+    expiresInSeconds = 300,
+  ): Promise<string> {
     const { data, error } = await this.client.storage
       .from(bucket)
       .createSignedUrl(path, expiresInSeconds);

@@ -14,27 +14,25 @@ import type { AuthenticatedUser, UserRole } from '../database/database.types';
 @Injectable()
 export class SupabaseTokenService {
   private readonly logger = new Logger(SupabaseTokenService.name);
-  private readonly audience: string;
-  private readonly issuer: string;
   private remoteJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
   constructor(
     @Inject(SUPABASE_SERVICE) private readonly serviceClient: SupabaseServiceClient,
     private readonly authUrl: string,
     private readonly jwtSecret: string,
-    audience: string,
-    issuer: string,
-  ) {
-    this.audience = audience;
-    this.issuer = issuer;
-  }
+    private readonly audience: string,
+    private readonly issuer: string,
+  ) {}
 
   async verifyAccessToken(token: string): Promise<JWTPayload> {
-    const claims = await this.verifyWithJwks(token).catch((error: Error) => {
-      this.logger.debug(`JWKS verification unavailable (${error.message}); trying HS256.`);
+    try {
+      return await this.verifyWithJwks(token);
+    } catch (error) {
+      this.logger.debug(
+        `JWKS verification unavailable (${(error as Error).message}); trying HS256.`,
+      );
       return this.verifyWithSecret(token);
-    });
-    return claims;
+    }
   }
 
   private async verifyWithJwks(token: string): Promise<JWTPayload> {
@@ -52,7 +50,9 @@ export class SupabaseTokenService {
 
   private async verifyWithSecret(token: string): Promise<JWTPayload> {
     if (!this.jwtSecret) {
-      throw new Error('Token signature could not be verified with the configured credentials.');
+      throw new Error(
+        'Token signature could not be verified with the configured credentials.',
+      );
     }
     const { payload } = await jwtVerify(token, new TextEncoder().encode(this.jwtSecret), {
       audience: this.audience,
@@ -78,8 +78,6 @@ export class SupabaseTokenService {
     ]);
 
     const allRoles = ((roles ?? []) as { role: UserRole }[]).map((row) => row.role);
-    const emailVerified = payload.email_verified === true || profile?.is_email_verified === true;
-    const phoneVerified = payload.phone_verified === true || profile?.is_mobile_verified === true;
 
     return {
       id: userId,
@@ -88,8 +86,8 @@ export class SupabaseTokenService {
       role: allRoles[0] ?? null,
       roles: allRoles,
       fullName: profile?.full_name ?? null,
-      isEmailVerified: emailVerified,
-      isMobileVerified: phoneVerified,
+      isEmailVerified: payload.email_verified === true || profile?.is_email_verified === true,
+      isMobileVerified: payload.phone_verified === true || profile?.is_mobile_verified === true,
     };
   }
 }

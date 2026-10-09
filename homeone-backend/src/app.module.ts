@@ -5,7 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { appConfig, authConfig, supabaseConfig } from './config/configuration';
 import { EnvironmentValidator } from './config/env.validation';
 import { SupabaseModule } from './database/supabase.module';
-
+import { DatabaseHealthModule } from './database/database.module';
 import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -20,7 +20,6 @@ import { ServiceDomainsModule } from './service-domains/service-domains.module';
 import { ServicesModule } from './services/services.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
-import { DatabaseHealthModule } from './database/database.module';
 
 @Module({
   imports: [
@@ -31,16 +30,12 @@ import { DatabaseHealthModule } from './database/database.module';
       // `validate` (not `validationSchema`): @nestjs/config v3 expects a Joi
       // schema under `validationSchema`, and silently drops the file values if
       // given anything else. Our validator throws with a readable message.
-      validate: (config: Record<string, unknown>) => new EnvironmentValidator().validate(config),
+      validate: (config: Record<string, unknown>) =>
+        new EnvironmentValidator().validate(config),
       envFilePath: ['.env.local', '.env'],
     }),
     ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          ttl: 60_000,
-          limit: 120,
-        },
-      ],
+      throttlers: [{ ttl: 60_000, limit: 120 }],
     }),
     SupabaseModule,
     StorageModule,

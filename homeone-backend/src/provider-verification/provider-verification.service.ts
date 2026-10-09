@@ -51,7 +51,6 @@ export class ProviderVerificationService {
       .from('service_providers')
       .select('id', { count: 'exact', head: true })
       .eq('verification_status', 'PENDING');
-
     assertNoError(countError);
 
     const { data, error } = await this.client
@@ -62,18 +61,9 @@ export class ProviderVerificationService {
       .range(offset, offset + limit - 1);
     assertNoError(error);
 
-    const rows = (data ?? []) as ServiceProviderRow[];
+    const { items } = await this.attachNames((data ?? []) as ServiceProviderRow[]);
 
-    // Resolved with follow-up queries instead of PostgREST embeds so the shape
-    // does not depend on constraint names or relationship cardinality.
-    const { items } = await this.attachNames(rows);
-
-    return {
-      items,
-      total: count ?? rows.length,
-      limit,
-      offset,
-    };
+    return { items, total: count ?? items.length, limit, offset };
   }
 
   /** Adds `domainName` and `fullName` to provider rows for the admin list. */
@@ -124,11 +114,11 @@ export class ProviderVerificationService {
     return (data ?? []) as ProviderVerificationHistoryRow[];
   }
 
-  async approve(providerId: string, adminId: string): Promise<VerificationActionResult> {
+  approve(providerId: string, adminId: string): Promise<VerificationActionResult> {
     return this.transition(providerId, adminId, 'APPROVED', null);
   }
 
-  async reject(
+  reject(
     providerId: string,
     adminId: string,
     reason: string,
@@ -136,15 +126,11 @@ export class ProviderVerificationService {
     return this.transition(providerId, adminId, 'REJECTED', reason);
   }
 
-  async block(
-    providerId: string,
-    adminId: string,
-    reason: string,
-  ): Promise<VerificationActionResult> {
+  block(providerId: string, adminId: string, reason: string): Promise<VerificationActionResult> {
     return this.transition(providerId, adminId, 'BLOCKED', reason);
   }
 
-  /** Allows a rejected or blocked provider to be resubmitted for review. */
+  /** Allows a rejected provider to be sent back for review. */
   async resubmit(providerId: string): Promise<void> {
     const { error } = await this.client
       .from('service_providers')
@@ -176,9 +162,7 @@ export class ProviderVerificationService {
     }
 
     if (newStatus === 'APPROVED' && oldStatus === 'BLOCKED') {
-      throw new ForbiddenException(
-        'A blocked provider cannot be approved directly. Unblock first.',
-      );
+      throw new ForbiddenException('A blocked provider cannot be approved directly. Unblock first.');
     }
 
     const reviewedAt = new Date().toISOString();
@@ -193,14 +177,16 @@ export class ProviderVerificationService {
       .eq('id', providerId);
     assertNoError(updateError);
 
-    const { error: historyError } = await this.client.from('provider_verification_history').insert({
-      provider_id: providerId,
-      old_status: oldStatus,
-      new_status: newStatus,
-      reason: reason ?? null,
-      reviewed_by: adminId,
-      reviewed_at: reviewedAt,
-    });
+    const { error: historyError } = await this.client
+      .from('provider_verification_history')
+      .insert({
+        provider_id: providerId,
+        old_status: oldStatus,
+        new_status: newStatus,
+        reason: reason ?? null,
+        reviewed_by: adminId,
+        reviewed_at: reviewedAt,
+      });
     assertNoError(historyError);
 
     const copy = VERIFICATION_MESSAGES[newStatus];

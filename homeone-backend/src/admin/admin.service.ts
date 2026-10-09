@@ -13,6 +13,7 @@ import type {
   AdminDocumentDto,
   AdminProviderDetailDto,
   PendingProviderDto,
+  PendingProviderListDto,
   ReviewActionDto,
   VerificationActionResponseDto,
   VerificationHistoryDto,
@@ -26,12 +27,15 @@ export class AdminService {
     private readonly documents: ProviderDocumentsService,
   ) {}
 
-  async listPendingProviders(limit: number, offset: number) {
+  async listPendingProviders(limit: number, offset: number): Promise<PendingProviderListDto> {
     const result = await this.verification.listPending(limit, offset);
     const userIds = result.items.map((row) => row.user_id);
 
     const { data: profiles } = userIds.length
-      ? await this.client.from('profiles').select('id, mobile_number, email').in('id', userIds)
+      ? await this.client
+          .from('profiles')
+          .select('id, mobile_number, email')
+          .in('id', userIds)
       : { data: [] as { id: string; mobile_number: string | null; email: string }[] };
 
     const contactById = new Map(
@@ -87,11 +91,9 @@ export class AdminService {
       : { data: [] as { id: string; service_name: string }[] };
 
     const history = await this.verification.history(providerId);
-    const contact = profile as {
-      full_name: string;
-      mobile_number: string | null;
-      email: string;
-    } | null;
+    const contact = profile as
+      | { full_name: string; mobile_number: string | null; email: string }
+      | null;
 
     return {
       id: provider.id,
@@ -121,7 +123,10 @@ export class AdminService {
     };
   }
 
-  async getProviderDocuments(providerId: string, adminUserId: string): Promise<AdminDocumentDto[]> {
+  async getProviderDocuments(
+    providerId: string,
+    adminUserId: string,
+  ): Promise<AdminDocumentDto[]> {
     const rows = await this.documents.listForReviewer(providerId, adminUserId, true);
 
     return rows.map((row) => ({
@@ -135,24 +140,30 @@ export class AdminService {
     }));
   }
 
-  async approve(providerId: string, adminUserId: string): Promise<VerificationActionResponseDto> {
-    return toActionDto(await this.verification.approve(providerId, adminUserId));
+  approve(providerId: string, adminUserId: string): Promise<VerificationActionResponseDto> {
+    return this.verification
+      .approve(providerId, adminUserId)
+      .then(toActionDto);
   }
 
-  async reject(
+  reject(
     providerId: string,
     adminUserId: string,
     dto: ReviewActionDto,
   ): Promise<VerificationActionResponseDto> {
-    return toActionDto(await this.verification.reject(providerId, adminUserId, dto.reason));
+    return this.verification
+      .reject(providerId, adminUserId, dto.reason)
+      .then(toActionDto);
   }
 
-  async block(
+  block(
     providerId: string,
     adminUserId: string,
     dto: ReviewActionDto,
   ): Promise<VerificationActionResponseDto> {
-    return toActionDto(await this.verification.block(providerId, adminUserId, dto.reason));
+    return this.verification
+      .block(providerId, adminUserId, dto.reason)
+      .then(toActionDto);
   }
 
   async getHistory(providerId: string): Promise<VerificationHistoryDto[]> {

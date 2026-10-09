@@ -24,7 +24,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { memoryImageUpload, requireUploadedFile } from '../storage/upload.config';
 import { UsersService } from './users.service';
-import { ProfileResponseDto, UpdateProfileDto } from './dto';
+import type { ProfileResponseDto, UpdateProfileDto } from './dto';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 

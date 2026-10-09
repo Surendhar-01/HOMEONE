@@ -15,9 +15,11 @@ export class SupabaseError extends BadRequestException {
  * Turns a PostgREST error into a friendly HTTP error without leaking SQL,
  * bucket names or internal identifiers to the client.
  */
-export function toSupabaseError(
-  error: { message: string; code?: string; details?: string } | null,
-): never {
+export function toSupabaseError(error: {
+  message: string;
+  code?: string;
+  details?: string;
+} | null): never {
   if (!error) {
     return undefined as never;
   }
@@ -38,7 +40,11 @@ export function toSupabaseError(
     case '22P02':
       throw new SupabaseError('Malformed identifier supplied.', error.code, error.message);
     case 'PGRST116':
-      throw new SupabaseError('No rows matched the requested record.', error.code, error.message);
+      throw new SupabaseError(
+        'No rows matched the requested record.',
+        error.code,
+        error.message,
+      );
     default:
       throw new SupabaseError(error.message, error.code, error.message);
   }

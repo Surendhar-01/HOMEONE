@@ -10,8 +10,7 @@ export interface ApiEnvelope<T> {
   timestamp: string;
 }
 
-const REDACTED_KEYS =
-  /^(password|confirmPassword|token|accessToken|refreshToken|otp|code|authorization)$/i;
+const REDACTED_KEYS = /^(password|confirmPassword|token|accessToken|refreshToken|otp|code|authorization)$/i;
 
 function redact(body: unknown): unknown {
   if (body === null || typeof body !== 'object') {

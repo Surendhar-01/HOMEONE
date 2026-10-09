@@ -9,7 +9,6 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import type { UserRole } from '../../database/database.types';
 
 export class RegisterProfileDto {
@@ -39,9 +38,7 @@ export class RegisterProfileDto {
     writeOnly: true,
   })
   @IsString()
-  @MinLength(8, {
-    message: 'Password is required and must be at least 8 characters.',
-  })
+  @MinLength(8, { message: 'Password is required and must be at least 8 characters.' })
   @MaxLength(128)
   password!: string;
 
@@ -55,7 +52,6 @@ export class RegisterProfileDto {
     description: 'Must be true. Registration is blocked until terms are accepted.',
   })
   @IsBoolean()
-  @Type(() => Boolean)
   agreedToTerms!: boolean;
 
   @ApiProperty({

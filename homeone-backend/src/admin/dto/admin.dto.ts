@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class ReviewActionDto {
   @ApiProperty({
@@ -22,6 +22,12 @@ export class PendingProviderDto {
 
   @ApiProperty({ example: 'Ravi Kumar', nullable: true })
   fullName!: string | null;
+
+  @ApiProperty({ example: '+919876543210', nullable: true })
+  mobileNumber!: string | null;
+
+  @ApiProperty({ example: 'ravi@example.com', nullable: true })
+  email!: string | null;
 
   @ApiProperty({ example: 'Cleaning Services', nullable: true })
   domainName!: string | null;
@@ -74,7 +80,7 @@ export class VerificationActionResponseDto {
 
   @ApiProperty({
     example:
-      'Congratulations! Your service provider account has been approved. You can now access your service provider dashboard.',
+      "Congratulations! Your service provider account has been approved. You can now access your service provider dashboard.",
   })
   message!: string;
 }
@@ -173,7 +179,7 @@ export class AdminDocumentDto {
   @ApiProperty({ enum: ['GOVERNMENT_ID', 'CERTIFICATE', 'WORK_PHOTO'] })
   documentType!: string;
 
-  @ApiProperty({ nullable: true, example: 'aadhaar-front.png' })
+  @ApiProperty({ example: 'aadhaar-front.png', nullable: true })
   originalFilename!: string | null;
 
   @ApiProperty({ example: 'image/png', nullable: true })

@@ -9,7 +9,7 @@ export class NotificationResponseDto {
 
   @ApiProperty({
     example:
-      'Congratulations! Your service provider account has been approved. You can now access your service provider dashboard.',
+      "Congratulations! Your service provider account has been approved. You can now access your service provider dashboard.",
   })
   message!: string;
 

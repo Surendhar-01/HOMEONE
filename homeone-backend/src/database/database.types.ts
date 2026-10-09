@@ -26,10 +26,10 @@ export interface UserRoleRow {
 export interface CustomerHomeRow {
   id: string;
   customer_id: string;
-  label: string | null;
   address: string;
   latitude: number | null;
   longitude: number | null;
+  label: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -79,9 +79,9 @@ export interface ProviderDocumentRow {
   provider_id: string;
   document_type: DocumentType;
   storage_path: string;
-  original_filename: string;
-  mime_type: string;
-  size_bytes: number;
+  original_filename: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
   uploaded_at: string;
 }
 

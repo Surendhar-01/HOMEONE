@@ -10,7 +10,7 @@ import {
 import { Public } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ServicesService } from './services.service';
-import { ServiceResponseDto } from './dto/service.dto';
+import type { ServiceResponseDto } from './dto/service.dto';
 
 @ApiTags('Services')
 @Controller('services')

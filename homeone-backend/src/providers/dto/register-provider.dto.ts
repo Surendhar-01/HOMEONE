@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsNumber,
@@ -16,8 +17,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ValidWorkingHours } from '../validators/working-hours.validator';
 import { MOBILE_REGEX, MOBILE_ERROR_MESSAGE } from '../../common/validators/validation.util';
+import { ValidWorkingHours } from '../validators/working-hours.validator';
 import type { DocumentType, VerificationStatus } from '../../database/database.types';
 
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -52,7 +53,7 @@ export class RegisterProviderDto {
   mobileNumber!: string;
 
   @ApiProperty({ example: 'ravi@example.com' })
-  @IsString()
+  @IsEmail()
   @MaxLength(254)
   email!: string;
 
@@ -176,7 +177,7 @@ export class UpdateProviderDto {
   @IsString({ each: true })
   languagesSpoken?: string[];
 
-  @ApiPropertyOptional({ type: [String], description: 'Service domain name.' })
+  @ApiPropertyOptional({ example: 'Cleaning Services', description: 'Service domain name.' })
   @IsOptional()
   @IsString()
   domainName?: string;
@@ -239,8 +240,6 @@ export class VerificationStatusResponseDto {
   })
   message!: string;
 
-  @ApiProperty({
-    description: 'True when the account may open the service provider dashboard.',
-  })
+  @ApiProperty({ description: 'True when the account may open the service provider dashboard.' })
   canAccessDashboard!: boolean;
 }

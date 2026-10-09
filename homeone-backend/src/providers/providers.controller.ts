@@ -6,6 +6,7 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -25,7 +26,6 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
-import { UploadedFile } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public, Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -36,7 +36,7 @@ import {
   requireWorkPhotos,
 } from '../storage/upload.config';
 import { ProvidersService } from './providers.service';
-import {
+import type {
   RegisterProviderDto,
   UpdateProviderDto,
   UpdateSkillsDto,
@@ -97,7 +97,7 @@ export class ProvidersController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['documentType', 'file'],
+      required: ['documentType'],
       properties: {
         documentType: { type: 'string', enum: ['GOVERNMENT_ID', 'CERTIFICATE'] },
         noCertificate: { type: 'boolean', default: false },
@@ -117,12 +117,7 @@ export class ProvidersController {
     @Body() dto: UploadProviderDocumentDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.providersService.attachDocument(
-      userId,
-      dto.documentType,
-      file ?? null,
-      dto.noCertificate === true,
-    );
+    return this.providersService.attachDocument(userId, dto.documentType, file ?? null, dto.noCertificate === true);
   }
 
   @Get('documents')
@@ -133,7 +128,10 @@ export class ProvidersController {
     description: 'Signed URLs expire after 5 minutes and are never cached by the app.',
   })
   @ApiOkResponse({ description: 'Document metadata plus signed URLs.' })
-  async listDocuments(@CurrentUser('id') userId: string, @Query('signedUrls') signedUrls?: string) {
+  async listDocuments(
+    @CurrentUser('id') userId: string,
+    @Query('signedUrls') signedUrls?: string,
+  ) {
     const provider = await this.providersService.requireProvider(userId);
     return this.providersService.listDocuments(provider.id, signedUrls !== 'false');
   }
@@ -141,10 +139,7 @@ export class ProvidersController {
   @Post('work-photos')
   @Roles('PROFESSIONAL')
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [{ name: 'files', maxCount: 10 }],
-      memoryWorkPhotoUpload(MAX_IMAGE_BYTES),
-    ),
+    FileFieldsInterceptor([{ name: 'files', maxCount: 10 }], memoryWorkPhotoUpload(MAX_IMAGE_BYTES)),
   )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -152,11 +147,7 @@ export class ProvidersController {
       type: 'object',
       required: ['files'],
       properties: {
-        files: {
-          type: 'array',
-          items: { type: 'string', format: 'binary' },
-          maxItems: 10,
-        },
+        files: { type: 'array', items: { type: 'string', format: 'binary' }, maxItems: 10 },
       },
     },
   })

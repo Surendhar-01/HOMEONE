@@ -1,9 +1,9 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { SupabaseServiceClient } from '../database/supabase.module';
 import { SUPABASE_SERVICE } from '../database/supabase.module';
 import type { NotificationRow } from '../database/database.types';
 import { assertNoError } from '../database/supabase-error.util';
-import type { NotificationListDto } from './dto/notification.dto';
+import type { NotificationListDto, NotificationResponseDto } from './dto/notification.dto';
 
 @Injectable()
 export class NotificationsService {
@@ -17,7 +17,7 @@ export class NotificationsService {
   ): Promise<NotificationListDto> {
     let query = this.client
       .from('notifications')
-      .select('*', { count: 'exact' })
+      .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -36,21 +36,14 @@ export class NotificationsService {
       .eq('is_read', false);
 
     return {
-      items: ((data ?? []) as NotificationRow[]).map((row) => ({
-        id: row.id,
-        title: row.title,
-        message: row.message,
-        notificationType: row.notification_type,
-        isRead: row.is_read,
-        createdAt: row.created_at,
-      })),
+      items: ((data ?? []) as NotificationRow[]).map(toNotificationDto),
       unreadCount: unreadCount ?? 0,
       limit,
       offset,
     };
   }
 
-  async markRead(userId: string, notificationId: string) {
+  async markRead(userId: string, notificationId: string): Promise<NotificationResponseDto> {
     const { data, error } = await this.client
       .from('notifications')
       .update({ is_read: true })
@@ -64,14 +57,7 @@ export class NotificationsService {
       throw new NotFoundException('Notification not found.');
     }
 
-    return {
-      id: data.id,
-      title: data.title,
-      message: data.message,
-      notificationType: data.notification_type,
-      isRead: data.is_read,
-      createdAt: data.created_at,
-    };
+    return toNotificationDto(data as NotificationRow);
   }
 
   async markAllRead(userId: string): Promise<{ updated: number }> {
@@ -99,9 +85,17 @@ export class NotificationsService {
       message,
       notification_type: notificationType,
     });
-
-    if (error) {
-      throw new ForbiddenException(`Notification could not be created: ${error.message}`);
-    }
+    assertNoError(error);
   }
+}
+
+function toNotificationDto(row: NotificationRow): NotificationResponseDto {
+  return {
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    notificationType: row.notification_type,
+    isRead: row.is_read,
+    createdAt: row.created_at,
+  };
 }

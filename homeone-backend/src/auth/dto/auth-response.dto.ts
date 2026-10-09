@@ -1,9 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AuthSessionDto {
-  @ApiProperty({
-    description: 'Supabase access token (JWT). Send as `Authorization: Bearer <token>`.',
-  })
+  @ApiProperty({ description: 'Supabase access token (JWT). Send as `Authorization: Bearer <token>`.' })
   accessToken!: string;
 
   @ApiProperty({ description: 'Refresh token used to obtain a new access token.' })

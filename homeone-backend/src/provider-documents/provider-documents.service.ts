@@ -1,9 +1,16 @@
-import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { SupabaseServiceClient } from '../database/supabase.module';
 import { SUPABASE_SERVICE } from '../database/supabase.module';
 import type { DocumentType, ProviderDocumentRow } from '../database/database.types';
 import { assertNoError } from '../database/supabase-error.util';
-import { StorageService, BUCKETS } from '../storage/storage.service';
+import { BUCKETS, StorageService } from '../storage/storage.service';
 
 /**
  * Document-level access control. Government IDs are readable only by the owning
@@ -23,13 +30,12 @@ export class ProviderDocumentsService {
     providerId: string,
     viewerUserId: string,
     isAdmin: boolean,
-  ): Promise<(ProviderDocumentRow & { signedUrl: string; documentType: DocumentType })[]> {
-    const { data: provider, error: providerError } = await this.client
+  ): Promise<(ProviderDocumentRow & { signedUrl: string })[]> {
+    const { data: provider } = await this.client
       .from('service_providers')
       .select('user_id')
       .eq('id', providerId)
       .maybeSingle();
-    assertNoError(providerError);
 
     if (!provider) {
       throw new NotFoundException('Service provider not found.');
@@ -44,12 +50,9 @@ export class ProviderDocumentsService {
       .order('uploaded_at', { ascending: false });
     assertNoError(error);
 
-    const rows = (data ?? []) as ProviderDocumentRow[];
-
     return Promise.all(
-      rows.map(async (row) => ({
+      ((data ?? []) as ProviderDocumentRow[]).map(async (row) => ({
         ...row,
-        documentType: row.document_type,
         signedUrl: await this.storage.createSignedUrl(
           bucketFor(row.document_type),
           row.storage_path,

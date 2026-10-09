@@ -21,6 +21,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  DATABASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
   PORT?: string;
 
   @IsOptional()
@@ -41,10 +45,6 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  AUTH_OTP_LENGTH?: string;
-
-  @IsOptional()
-  @IsString()
   UPLOAD_MAX_IMAGE_BYTES?: string;
 
   @IsOptional()
@@ -52,6 +52,11 @@ export class EnvironmentVariables {
   UPLOAD_MAX_DOCUMENT_BYTES?: string;
 }
 
+/**
+ * Passed to `ConfigModule.forRoot({ validate })`, not `validationSchema`.
+ * @nestjs/config v3 expects a Joi schema under `validationSchema` and silently
+ * discards the loaded file values if it receives anything else.
+ */
 @Injectable()
 export class EnvironmentValidator {
   validate(config: Record<string, unknown>): Record<string, unknown> {

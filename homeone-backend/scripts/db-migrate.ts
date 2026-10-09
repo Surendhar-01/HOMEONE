@@ -6,8 +6,6 @@
  *
  * The Supabase CLI is the usual path (`supabase db push`); this script exists so
  * the schema can also be applied from a machine that only has Node installed.
- * It uses the postgres superuser connection string, so keep DATABASE_URL in
- * .env and out of version control.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,10 +23,7 @@ async function main(): Promise<void> {
     throw new Error('DATABASE_URL is not set. Add it to .env before running migrations.');
   }
 
-  const client = new Client({
-    connectionString,
-    ssl: { rejectUnauthorized: false },
-  });
+  const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
 
   await client.connect();
   console.log('Connected.');
@@ -38,26 +33,14 @@ async function main(): Promise<void> {
     .sort();
 
   for (const file of files) {
-    const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
     console.log(`Applying ${file}...`);
-    await client.query(sql);
+    await client.query(readFileSync(join(MIGRATIONS_DIR, file), 'utf8'));
     console.log(`  ok ${file}`);
   }
 
-  const seedSql = readFileSync(SEED_FILE, 'utf8');
   console.log('Applying seed.sql...');
-  await client.query(seedSql);
+  await client.query(readFileSync(SEED_FILE, 'utf8'));
   console.log('  ok seed.sql');
-
-  const { rows } = await client.query<{ table_name: string; row_count: number }>(`select relname::text as table_name, n_live_tup::int as row_count
-     from pg_stat_user_tables
-     where schemaname = 'public'
-     order by relname`);
-
-  console.log('\npublic tables:');
-  for (const row of rows) {
-    console.log(`  ${row.table_name.padEnd(34)} ${row.row_count} rows`);
-  }
 
   await client.end();
 }

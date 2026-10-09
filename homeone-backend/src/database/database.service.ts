@@ -4,7 +4,13 @@ import { SUPABASE_CONFIG_NAMESPACE } from '../config/configuration';
 import type { SupabaseServiceClient } from './supabase.module';
 import { SUPABASE_ANON_CLIENT, SUPABASE_SERVICE } from './supabase.module';
 
-/** Thin health probe so the app can fail fast if Supabase is misconfigured. */
+/**
+ * Cold PostgREST calls on an idle Supabase project routinely take 2-5s, so the
+ * probe budget is generous and the database check is retried once. With a
+ * tighter budget the endpoint flaps between ok and degraded under normal use.
+ */
+const HEALTH_TIMEOUT_MS = 8000;
+
 @Injectable()
 export class DatabaseService {
   private readonly logger = new Logger(DatabaseService.name);
@@ -21,24 +27,19 @@ export class DatabaseService {
     return { database, auth };
   }
 
-  /**
-   * Cold PostgREST calls on an idle Supabase project routinely take 2-5s, so the
-   * budget is generous and the probe is retried once before giving up. Without
-   * this the endpoint flaps between ok and degraded under normal load.
-   */
   private async pingDatabase(): Promise<'up' | 'down'> {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
       const { error } = await this.serviceClient
         .from('service_domains')
         .select('id')
         .limit(1)
-        .abortSignal(this.timeoutSignal(HEALTH_TIMEOUT_MS));
+        .abortSignal(this.timeoutSignal());
 
       if (!error) {
         return 'up';
       }
 
-      this.logger.warn(`Database ping attempt ${attempt + 1} failed: ${error.message}`);
+      this.logger.warn(`Database ping attempt ${attempt} failed: ${error.message}`);
     }
 
     return 'down';
@@ -49,7 +50,7 @@ export class DatabaseService {
    * public and returns the project's Auth configuration, so this confirms both
    * that Auth is reachable and that the key is accepted.
    */
-  private async pingAuth(): Promise<string> {
+  private async pingAuth(): Promise<'configured' | 'misconfigured' | 'unreachable'> {
     const supabaseUrl = this.config.get<string>(`${SUPABASE_CONFIG_NAMESPACE}.url`) ?? '';
     const publishableKey =
       this.config.get<string>(`${SUPABASE_CONFIG_NAMESPACE}.publishableKey`) ?? '';
@@ -69,14 +70,12 @@ export class DatabaseService {
     }
   }
 
-  private timeoutSignal(timeoutMs = 3000): AbortSignal {
+  private timeoutSignal(timeoutMs = HEALTH_TIMEOUT_MS): AbortSignal {
     return AbortSignal.timeout(timeoutMs);
   }
 
-  /** Public build/runtime info. Never includes keys. */
+  /** Public build/runtime info. Never includes key material. */
   describeClients() {
-    const url = this.config.get<string>(`${SUPABASE_CONFIG_NAMESPACE}.url`);
-    this.logger.debug(`Supabase clients initialised for ${url}`);
     return {
       serviceRoleConfigured: Boolean(
         this.config.get<string>(`${SUPABASE_CONFIG_NAMESPACE}.serviceRoleKey`),

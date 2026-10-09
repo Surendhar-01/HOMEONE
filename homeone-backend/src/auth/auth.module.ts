@@ -1,11 +1,11 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigType } from '@nestjs/config';
 import { supabaseConfig } from '../config/configuration';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
 import { SupabaseTokenService } from './supabase-token.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
 import { SUPABASE_SERVICE, SupabaseServiceClient } from '../database/supabase.module';
 
 type SupabaseConfig = ConfigType<typeof supabaseConfig>;

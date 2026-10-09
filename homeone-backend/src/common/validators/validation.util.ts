@@ -14,6 +14,8 @@ export const PASSWORD_MAX_LENGTH = 128;
 export const OTP_REGEX = /^\d{6}$/;
 export const OTP_ERROR_MESSAGE = 'Enter the 6-digit verification code.';
 
+export const CONFIRM_PASSWORD_ERROR_MESSAGE = 'Password and confirm password do not match.';
+
 /** Returns an error message, or null when the password satisfies the policy. */
 export function validatePassword(password: string | undefined): string | null {
   if (!password || password.length < PASSWORD_MIN_LENGTH) {
@@ -31,8 +33,6 @@ export function validatePassword(password: string | undefined): string | null {
 export function passwordsMatch(password: string, confirmPassword: string): boolean {
   return password === confirmPassword;
 }
-
-export const CONFIRM_PASSWORD_ERROR_MESSAGE = 'Password and confirm password do not match.';
 
 /** Strips formatting characters users paste from their phone dialer. */
 export function normaliseMobile(mobile: string): string {

@@ -46,8 +46,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
       error = 'Bad Request';
     } else if (exception instanceof Error) {
-      message = 'Internal server error';
-      error = 'Internal Server Error';
+      this.logger.error(
+        `Unhandled: ${(exception as Error).message}`,
+        (exception as Error).stack,
+      );
     }
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
@@ -56,7 +58,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         (exception as Error)?.stack,
       );
     } else {
-      this.logger.warn(`${request.method} ${request.url} -> ${status}: ${JSON.stringify(message)}`);
+      this.logger.warn(
+        `${request.method} ${request.url} -> ${status}: ${JSON.stringify(message)}`,
+      );
     }
 
     const body: ErrorBody = {

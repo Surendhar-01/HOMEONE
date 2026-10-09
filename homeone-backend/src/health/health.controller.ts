@@ -32,18 +32,8 @@ export class HealthController {
     },
   })
   async check() {
-    let supabase: { database: string; auth: string } = {
-      database: 'unknown',
-      auth: 'unknown',
-    };
-    let status = 'ok';
-
-    try {
-      supabase = await this.database.ping();
-    } catch {
-      status = 'degraded';
-      supabase = { database: 'down', auth: 'unknown' };
-    }
+    const supabase = await this.database.ping();
+    const status = supabase.database === 'up' ? 'ok' : 'degraded';
 
     return {
       status,

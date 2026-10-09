@@ -10,15 +10,11 @@ export const GLOBAL_PREFIX = 'api/v1';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bufferLogs: false,
-  });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix(GLOBAL_PREFIX);
-  // Client uploads are multipart; the 100kb JSON body limit does not apply, but
-  // the upload size caps in StorageService still do.
   app.useBodyParser('json', { limit: '1mb' });
   app.useBodyParser('urlencoded', { limit: '1mb', extended: true });
 
@@ -96,6 +92,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const port = config.get<number>('app.port') ?? 8081;
+  // 0.0.0.0 so an Android emulator can reach it on the host loopback alias.
   await app.listen(port, '0.0.0.0');
 
   logger.log(`HOMEONE backend listening on http://localhost:${port}/${GLOBAL_PREFIX}`);

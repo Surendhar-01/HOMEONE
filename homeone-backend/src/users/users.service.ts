@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { SupabaseServiceClient } from '../database/supabase.module';
 import { SUPABASE_SERVICE } from '../database/supabase.module';
 import type { ProfileRow } from '../database/database.types';
@@ -9,7 +15,7 @@ import {
   MOBILE_REGEX,
   normaliseMobile,
 } from '../common/validators/validation.util';
-import type { ProfileResponseDto, UpdateProfileDto } from './dto/profile.dto';
+import type { ProfileResponseDto, UpdateProfileDto } from './dto';
 
 @Injectable()
 export class UsersService {
@@ -39,6 +45,7 @@ export class UsersService {
       .maybeSingle();
 
     const profile = data as ProfileRow;
+
     return {
       id: profile.id,
       fullName: profile.full_name,
@@ -46,7 +53,9 @@ export class UsersService {
       email: profile.email,
       profilePhotoPath: profile.profile_photo_path,
       profilePhotoUrl: profile.profile_photo_path
-        ? await this.storage.createSignedUrl(BUCKETS.profilePhotos, profile.profile_photo_path, 900)
+        ? await this.storage
+            .createSignedUrl(BUCKETS.profilePhotos, profile.profile_photo_path, 900)
+            .catch(() => null)
         : null,
       role: (roleRow as { role: string } | null)?.role ?? null,
       isEmailVerified: profile.is_email_verified,
@@ -88,7 +97,10 @@ export class UsersService {
     return this.getProfile(userId);
   }
 
-  async uploadProfilePhoto(userId: string, file: Express.Multer.File): Promise<ProfileResponseDto> {
+  async uploadProfilePhoto(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<ProfileResponseDto> {
     const uploaded = await this.storage.uploadImage(userId, BUCKETS.profilePhotos, file);
 
     const { data: current } = await this.client

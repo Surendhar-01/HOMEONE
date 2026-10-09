@@ -10,7 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { SupabaseServiceClient } from '../database/supabase.module';
 import { SUPABASE_ANON_CLIENT, SUPABASE_SERVICE } from '../database/supabase.module';
-import type { AuthenticatedUser, UserRole } from '../database/database.types';
+import type { UserRole } from '../database/database.types';
 import { normaliseMobile } from '../common/validators/validation.util';
 import type { LoginDto, ResetPasswordDto } from './dto/auth.dto';
 import type { RegisterProfileDto } from './dto/register-profile.dto';
@@ -27,13 +27,12 @@ interface AuthUserRecord {
   phone?: string;
   email_verified?: boolean;
   phone_verified?: boolean;
-  role?: string;
 }
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  /** Cooldown map for OTP resend: key -> epoch millis of last send. */
+  /** Cooldown map for OTP resend: email -> epoch millis of last send. */
   private readonly otpCooldown = new Map<string, number>();
 
   constructor(
@@ -48,7 +47,7 @@ export class AuthService {
 
   /**
    * Creates the auth account through Supabase, then writes `profiles` and
-   * `user_roles`. The password is passed straight to Supabase Auth and is never
+   * `user_roles`. The password goes straight to Supabase Auth and is never
    * stored in Postgres or logged.
    */
   async registerProfile(dto: RegisterProfileDto): Promise<RegisterProfileResponseDto> {
@@ -80,38 +79,33 @@ export class AuthService {
       email,
       phone: mobile,
       password: dto.password,
-      options: {
-        data: { full_name: dto.fullName },
-        emailRedirectTo: undefined,
-      },
+      options: { data: { full_name: dto.fullName } },
     });
 
     if (signUpError || !signUp.user) {
-      throw new ConflictException(signUpError?.message ?? 'Registration failed. Please try again.');
+      throw new ConflictException(
+        signUpError?.message ?? 'Registration failed. Please try again.',
+      );
     }
 
     const user = signUp.user as AuthUserRecord;
     const created = await this.persistProfile(user.id, email, mobile, dto.fullName, role);
 
     if (!created) {
-      // The account exists but has no profile row; treat as a failed
-      // registration rather than leaving an unusable login behind.
       throw new UnprocessableEntityException(
         'Account was created but the profile could not be saved. Please contact support.',
       );
     }
 
-    const channel = this.otpChannel;
+    // Supabase already sends a confirmation email during signUp. A failed
+    // resend is not fatal, but the app needs to know so it can prompt for it.
     const { error: otpError } = await this.anonClient.auth.resend({
       type: 'signup',
       email,
-      options: { emailRedirectTo: undefined },
     });
 
     let otpSent = true;
     if (otpError) {
-      // Supabase already sends a confirmation email during signUp. Treat a
-      // resend failure as non-fatal but surface it to the client.
       this.logger.warn(`OTP dispatch after registration failed: ${otpError.message}`);
       otpSent = false;
     }
@@ -123,13 +117,12 @@ export class AuthService {
       email,
       role,
       otpSent,
-      otpChannel: channel,
+      otpChannel: this.otpChannel,
       resendAvailableInSeconds: this.cooldownSeconds,
-      alreadyRegistered: signUp.user.identities?.length === 0,
+      alreadyRegistered: (signUp.user.identities?.length ?? 0) === 0,
     };
   }
 
-  /** Inserts profiles + user_roles atomically enough for our flow (transactionally rolled back by deleting the auth user on failure). */
   private async persistProfile(
     userId: string,
     email: string,
@@ -151,10 +144,9 @@ export class AuthService {
       return false;
     }
 
-    const { error: roleError } = await this.serviceClient.from('user_roles').insert({
-      user_id: userId,
-      role,
-    });
+    const { error: roleError } = await this.serviceClient
+      .from('user_roles')
+      .insert({ user_id: userId, role });
 
     if (roleError) {
       this.logger.error(`Role insert failed: ${roleError.message}`);
@@ -189,15 +181,15 @@ export class AuthService {
     }
 
     const user = data.user as AuthUserRecord;
-    await this.markEmailVerified(user.id, normalised);
+    await this.serviceClient
+      .from('profiles')
+      .update({ is_email_verified: true, email: normalised })
+      .eq('id', user.id);
 
     return this.buildSession(user, data.session);
   }
 
-  async resendOtp(
-    email: string,
-    tokenType: 'signup' | 'email_change',
-  ): Promise<ResendOtpResponseDto> {
+  async resendOtp(email: string, tokenType: 'signup' | 'email_change'): Promise<ResendOtpResponseDto> {
     const normalised = email.trim().toLowerCase();
     this.assertOtpCooldown(normalised);
 
@@ -224,16 +216,17 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthSessionDto> {
     const identifier = dto.identifier.trim();
-    const credentials = identifier.includes('@')
-      ? { email: identifier.toLowerCase(), password: dto.password }
-      : { phone: normaliseMobile(identifier), password: dto.password };
+    const password = dto.password;
 
-    const { data, error } = await this.anonClient.auth.signInWithPassword(
-      credentials as {
-        email: string;
-        password: string;
-      },
-    );
+    const { data, error } = identifier.includes('@')
+      ? await this.anonClient.auth.signInWithPassword({
+          email: identifier.toLowerCase(),
+          password,
+        })
+      : await this.anonClient.auth.signInWithPassword({
+          phone: normaliseMobile(identifier),
+          password,
+        });
 
     if (error || !data.user) {
       throw new UnauthorizedException(error?.message ?? 'Invalid login credentials.');
@@ -264,8 +257,7 @@ export class AuthService {
       );
     }
 
-    const user = data.user as AuthUserRecord;
-    return this.buildSession(user, data.session);
+    return this.buildSession(data.user as AuthUserRecord, data.session);
   }
 
   async logout(refreshToken?: string): Promise<MessageResponseDto> {
@@ -287,13 +279,12 @@ export class AuthService {
     });
 
     if (error) {
-      // Supabase rate-limits reset emails; surface that without revealing
-      // whether the account exists.
       throw new UnprocessableEntityException(error.message);
     }
 
     return {
-      message: 'If an account exists for that address, password reset instructions have been sent.',
+      message:
+        'If an account exists for that address, password reset instructions have been sent.',
       emailSent: true,
     };
   }
@@ -314,39 +305,6 @@ export class AuthService {
     }
 
     return { message: 'Password updated successfully. You can now sign in.' };
-  }
-
-  // -------------------------------------------------------------------------
-  // Identity
-  // -------------------------------------------------------------------------
-
-  async getPrincipal(userId: string): Promise<AuthenticatedUser> {
-    const [{ data: roles }, { data: profile }, { data: authUser }] = await Promise.all([
-      this.serviceClient.from('user_roles').select('role').eq('user_id', userId),
-      this.serviceClient
-        .from('profiles')
-        .select('full_name, is_email_verified, is_mobile_verified')
-        .eq('id', userId)
-        .maybeSingle(),
-      this.serviceClient.auth.admin.getUserById(userId),
-    ]);
-
-    if (!profile) {
-      throw new UnauthorizedException('No profile exists for this account.');
-    }
-
-    const user = authUser?.user as AuthUserRecord | undefined;
-
-    return {
-      id: userId,
-      email: user?.email ?? null,
-      phone: user?.phone ?? null,
-      role: (roles?.[0] as { role: UserRole } | undefined)?.role ?? null,
-      roles: (roles ?? []).map((row) => (row as { role: UserRole }).role),
-      fullName: profile.full_name,
-      isEmailVerified: user?.email_verified ?? profile.is_email_verified,
-      isMobileVerified: user?.phone_verified ?? profile.is_mobile_verified,
-    };
   }
 
   // -------------------------------------------------------------------------
@@ -377,13 +335,6 @@ export class AuthService {
         `Please wait ${remaining} second(s) before requesting another verification code.`,
       );
     }
-  }
-
-  private async markEmailVerified(userId: string, email: string): Promise<void> {
-    await this.serviceClient
-      .from('profiles')
-      .update({ is_email_verified: true, email })
-      .eq('id', userId);
   }
 
   private async syncVerificationFlags(user: AuthUserRecord): Promise<void> {

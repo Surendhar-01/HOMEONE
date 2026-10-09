@@ -27,7 +27,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CustomerService } from './customer.service';
-import { CreateHomeDto, HomeResponseDto, UpdateHomeDto } from './dto/home.dto';
+import type { CreateHomeDto, HomeResponseDto, UpdateHomeDto } from './dto/home.dto';
 
 @ApiTags('Customer')
 @ApiBearerAuth()

@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { Public } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ServiceDomainsService } from './service-domains.service';
-import { ServiceDomainResponseDto } from './dto/service-domain.dto';
+import type { ServiceDomainResponseDto } from './dto/service-domain.dto';
 
 @ApiTags('Service Domains')
 @Controller('service-domains')

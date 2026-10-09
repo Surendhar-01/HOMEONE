@@ -25,7 +25,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/roles.decorator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   CONFIRM_PASSWORD_ERROR_MESSAGE,
   passwordsMatch,
@@ -114,8 +114,7 @@ export class AuthController {
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Resend the verification OTP',
-    description:
-      'Enforces a per-email cooldown (default 60 seconds) before dispatching a new code.',
+    description: 'Enforces a per-email cooldown (default 60 seconds) before dispatching a new code.',
   })
   @ApiAcceptedResponse({ type: ResendOtpResponseDto })
   @ApiTooManyRequestsResponse({ description: 'Resend cooldown has not elapsed.' })

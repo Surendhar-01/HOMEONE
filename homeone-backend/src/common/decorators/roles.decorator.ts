@@ -1,5 +1,5 @@
 import { SetMetadata, type CustomDecorator } from '@nestjs/common';
-import { UserRole } from '../../database/database.types';
+import type { UserRole } from '../../database/database.types';
 
 export const ROLES_KEY = 'roles';
 

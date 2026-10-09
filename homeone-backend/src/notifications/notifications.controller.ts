@@ -1,4 +1,12 @@
-import { Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiNotFoundResponse,
@@ -13,7 +21,10 @@ import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from './notifications.service';
-import { NotificationListDto, NotificationResponseDto } from './dto/notification.dto';
+import type {
+  NotificationListDto,
+  NotificationResponseDto,
+} from './dto/notification.dto';
 
 class NotificationQueryDto {
   @ApiPropertyOptional({ example: 25, minimum: 1, maximum: 100, default: 25 })
@@ -61,6 +72,13 @@ export class NotificationsController {
     );
   }
 
+  @Patch('read-all')
+  @ApiOperation({ summary: 'Mark every notification as read' })
+  @ApiOkResponse({ description: 'Number of notifications updated.' })
+  markAllRead(@CurrentUser('id') userId: string) {
+    return this.notificationsService.markAllRead(userId);
+  }
+
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark one notification as read' })
   @ApiOkResponse({ type: NotificationResponseDto })
@@ -70,12 +88,5 @@ export class NotificationsController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) notificationId: string,
   ) {
     return this.notificationsService.markRead(userId, notificationId);
-  }
-
-  @Patch('read-all')
-  @ApiOperation({ summary: 'Mark every notification as read' })
-  @ApiOkResponse({ description: 'Number of notifications updated.' })
-  markAllRead(@CurrentUser('id') userId: string) {
-    return this.notificationsService.markAllRead(userId);
   }
 }

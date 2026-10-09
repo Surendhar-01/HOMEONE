@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { SupabaseServiceClient } from '../database/supabase.module';
 import { SUPABASE_ANON_CLIENT, SUPABASE_SERVICE } from '../database/supabase.module';
@@ -17,7 +23,7 @@ import {
   validatePassword,
 } from '../common/validators/validation.util';
 import { VERIFICATION_MESSAGES } from '../common/constants/verification-messages';
-import { StorageService, BUCKETS } from '../storage/storage.service';
+import { BUCKETS, StorageService } from '../storage/storage.service';
 import type {
   RegisterProviderDto,
   UpdateProviderDto,
@@ -49,6 +55,17 @@ export interface ProviderProfileView {
   canAccessDashboard: boolean;
 }
 
+export interface RegisterProviderResult {
+  userId: string;
+  email: string;
+  role: 'PROFESSIONAL';
+  providerId: string;
+  verificationStatus: VerificationStatus;
+  otpSent: boolean;
+  otpChannel: string;
+  resendAvailableInSeconds: number;
+}
+
 @Injectable()
 export class ProvidersService {
   private readonly logger = new Logger(ProvidersService.name);
@@ -65,20 +82,11 @@ export class ProvidersService {
   // -------------------------------------------------------------------------
 
   /**
-   * Professional registration. Creates the auth account, the profile, the
-   * provider row (always PENDING), skills, and working hours. Document upload
-   * happens afterwards through /providers/documents and /providers/work-photos.
+   * Creates the auth account, the profile, the provider row (always PENDING),
+   * skills and working hours. Documents are uploaded afterwards through
+   * /providers/documents and /providers/work-photos.
    */
-  async registerProvider(dto: RegisterProviderDto): Promise<{
-    userId: string;
-    email: string;
-    role: 'PROFESSIONAL';
-    verificationStatus: VerificationStatus;
-    otpSent: boolean;
-    otpChannel: string;
-    resendAvailableInSeconds: number;
-    providerId: string;
-  }> {
+  async registerProvider(dto: RegisterProviderDto): Promise<RegisterProviderResult> {
     const passwordError = validatePassword(dto.password);
     if (passwordError) {
       throw new BadRequestException([passwordError]);
@@ -164,18 +172,13 @@ export class ProvidersService {
       .single();
     assertNoError(providerError);
 
-    await this.replaceSkills(
-      provider!.id,
-      services.map((s) => s.id),
-    );
-    await this.replaceWorkingHours(provider!.id, dto.workingHours ?? defaultWorkingHours());
+    const providerId = (provider as { id: string }).id;
+    await this.replaceSkills(providerId, services.map((s) => s.id));
+    await this.replaceWorkingHours(providerId, dto.workingHours ?? defaultWorkingHours());
 
-    const channel = this.config.get<'email' | 'sms'>('auth.otpChannel') ?? 'email';
-    let otpSent = true;
     const { error: otpError } = await this.anonClient.auth.resend({ type: 'signup', email });
     if (otpError) {
       this.logger.warn(`Provider OTP dispatch failed: ${otpError.message}`);
-      otpSent = false;
     }
 
     await this.serviceClient.from('notifications').insert({
@@ -189,11 +192,11 @@ export class ProvidersService {
       userId,
       email,
       role: 'PROFESSIONAL',
+      providerId,
       verificationStatus: 'PENDING',
-      otpSent,
-      otpChannel: channel,
+      otpSent: !otpError,
+      otpChannel: this.config.get<'email' | 'sms'>('auth.otpChannel') ?? 'email',
       resendAvailableInSeconds: this.config.get<number>('auth.otpResendCooldownSeconds') ?? 60,
-      providerId: provider!.id,
     };
   }
 
@@ -202,13 +205,7 @@ export class ProvidersService {
   // -------------------------------------------------------------------------
 
   async getMyProvider(userId: string): Promise<ProviderProfileView> {
-    const provider = await this.providerByUserId(userId);
-    if (!provider) {
-      throw new NotFoundException(
-        'No service provider profile exists for this account. Complete registration first.',
-      );
-    }
-    return this.buildView(provider);
+    return this.buildView(await this.requireProvider(userId));
   }
 
   async getProviderById(providerId: string): Promise<ProviderProfileView> {
@@ -259,11 +256,7 @@ export class ProvidersService {
   }
 
   async getVerificationStatus(userId: string): Promise<VerificationStatusResponseDto> {
-    const provider = await this.providerByUserId(userId);
-    if (!provider) {
-      throw new NotFoundException('No service provider profile exists for this account.');
-    }
-    return this.verificationStatusDto(provider);
+    return this.verificationStatusDto(await this.requireProvider(userId));
   }
 
   verificationStatusDto(provider: ServiceProviderRow): VerificationStatusResponseDto {
@@ -286,28 +279,17 @@ export class ProvidersService {
     const provider = await this.requireProvider(userId);
     const patch: Record<string, unknown> = {};
 
-    if (dto.businessAddress !== undefined) {
-      patch.business_address = dto.businessAddress;
-    }
-    if (dto.latitude !== undefined) {
-      patch.latitude = dto.latitude;
-    }
-    if (dto.longitude !== undefined) {
-      patch.longitude = dto.longitude;
-    }
-    if (dto.yearsOfExperience !== undefined) {
-      patch.years_of_experience = dto.yearsOfExperience;
-    }
-    if (dto.languagesSpoken !== undefined) {
-      patch.languages_spoken = dto.languagesSpoken;
-    }
+    if (dto.businessAddress !== undefined) patch.business_address = dto.businessAddress;
+    if (dto.latitude !== undefined) patch.latitude = dto.latitude;
+    if (dto.longitude !== undefined) patch.longitude = dto.longitude;
+    if (dto.yearsOfExperience !== undefined) patch.years_of_experience = dto.yearsOfExperience;
+    if (dto.languagesSpoken !== undefined) patch.languages_spoken = dto.languagesSpoken;
     if (dto.domainName !== undefined) {
-      const domain = await this.resolveDomain(dto.domainName);
-      patch.domain_id = domain.id;
+      patch.domain_id = (await this.resolveDomain(dto.domainName)).id;
     }
 
     if (Object.keys(patch).length > 0) {
-      // A rejected or blocked provider editing their details returns to review.
+      // Editing an approved, rejected or blocked profile sends it back to review.
       if (provider.verification_status !== 'PENDING') {
         patch.verification_status = 'PENDING';
         patch.verification_reason = null;
@@ -326,10 +308,7 @@ export class ProvidersService {
   async updateSkills(userId: string, dto: UpdateSkillsDto): Promise<ProviderProfileView> {
     const provider = await this.requireProvider(userId);
     const services = await this.resolveServices(provider.domain_id, dto.skills);
-    await this.replaceSkills(
-      provider.id,
-      services.map((s) => s.id),
-    );
+    await this.replaceSkills(provider.id, services.map((s) => s.id));
     return this.getMyProvider(userId);
   }
 
@@ -359,13 +338,13 @@ export class ProvidersService {
         'Upload a certificate file or set noCertificate=true, not both.',
       );
     }
-
     if (documentType === 'GOVERNMENT_ID' && !file) {
       throw new BadRequestException('A government ID document must be uploaded.');
     }
-
     if (documentType === 'CERTIFICATE' && !noCertificate && !file) {
-      throw new BadRequestException('Upload a certificate file or declare that none is available.');
+      throw new BadRequestException(
+        'Upload a certificate file or declare that none is available.',
+      );
     }
 
     if (noCertificate) {
@@ -378,14 +357,19 @@ export class ProvidersService {
       return this.getMyProvider(userId);
     }
 
-    const uploaded = await this.storage.uploadDocument(userId, BUCKETS.providerDocuments, file!);
+    const uploaded = await this.storage.uploadDocument(
+      userId,
+      BUCKETS.providerDocuments,
+      file as Express.Multer.File,
+    );
 
     await this.replaceDocumentsOfType(provider.id, documentType);
+
     const { error } = await this.serviceClient.from('provider_documents').insert({
       provider_id: provider.id,
       document_type: documentType,
       storage_path: uploaded.path,
-      original_filename: file!.originalname,
+      original_filename: (file as Express.Multer.File).originalname,
       mime_type: uploaded.mimeType,
       size_bytes: uploaded.size,
     });
@@ -434,20 +418,6 @@ export class ProvidersService {
 
     await this.touchSubmitted(provider.id);
     return this.getMyProvider(userId);
-  }
-
-  /** Readiness flag used by the app to decide whether to show the admin-review note. */
-  async documentsComplete(providerId: string): Promise<boolean> {
-    const { data, error } = await this.serviceClient
-      .from('provider_documents')
-      .select('document_type')
-      .eq('provider_id', providerId);
-    assertNoError(error);
-
-    const types = new Set(
-      (data ?? []).map((row) => (row as { document_type: DocumentType }).document_type),
-    );
-    return types.has('GOVERNMENT_ID') && types.has('WORK_PHOTO');
   }
 
   // -------------------------------------------------------------------------
@@ -499,7 +469,10 @@ export class ProvidersService {
           .select('*')
           .eq('provider_id', provider.id)
           .order('day_of_week'),
-        this.serviceClient.from('provider_documents').select('*').eq('provider_id', provider.id),
+        this.serviceClient
+          .from('provider_documents')
+          .select('*')
+          .eq('provider_id', provider.id),
       ]);
 
     const serviceIds = ((skills ?? []) as ProviderSkillRow[]).map((row) => row.service_id);
@@ -571,8 +544,12 @@ export class ProvidersService {
       .eq('is_active', true);
     assertNoError(error);
 
-    const available = (data ?? []) as { id: string; service_name: string }[];
-    const byName = new Map(available.map((row) => [row.service_name.toLowerCase(), row]));
+    const byName = new Map(
+      ((data ?? []) as { id: string; service_name: string }[]).map((row) => [
+        row.service_name.toLowerCase(),
+        row,
+      ]),
+    );
 
     const resolved: { id: string; service_name: string }[] = [];
     const missing: string[] = [];
@@ -611,23 +588,26 @@ export class ProvidersService {
     assertNoError(error);
   }
 
-  private async replaceWorkingHours(providerId: string, hours: WorkingHourDto[]): Promise<void> {
-    validateWorkingHours(hours);
-
+  private async replaceWorkingHours(
+    providerId: string,
+    hours: WorkingHourDto[],
+  ): Promise<void> {
     const { error: deleteError } = await this.serviceClient
       .from('provider_working_hours')
       .delete()
       .eq('provider_id', providerId);
     assertNoError(deleteError);
 
-    const rows = hours.map((hour) => ({
-      provider_id: providerId,
-      day_of_week: hour.dayOfWeek,
-      start_time: hour.startTime,
-      end_time: hour.endTime,
-    }));
-
-    const { error } = await this.serviceClient.from('provider_working_hours').insert(rows);
+    const { error } = await this.serviceClient
+      .from('provider_working_hours')
+      .insert(
+        hours.map((hour) => ({
+          provider_id: providerId,
+          day_of_week: hour.dayOfWeek,
+          start_time: hour.startTime,
+          end_time: hour.endTime,
+        })),
+      );
     assertNoError(error);
   }
 

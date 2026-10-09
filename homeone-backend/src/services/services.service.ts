@@ -12,7 +12,7 @@ export class ServicesService {
   async findByDomain(domainId: string): Promise<ServiceResponseDto[]> {
     const { data: domain, error: domainError } = await this.client
       .from('service_domains')
-      .select('id, is_active')
+      .select('id')
       .eq('id', domainId)
       .maybeSingle();
     assertNoError(domainError);

@@ -19,14 +19,14 @@ export class CustomerService {
   constructor(@Inject(SUPABASE_SERVICE) private readonly client: SupabaseServiceClient) {}
 
   async createHome(customerId: string, dto: CreateHomeDto): Promise<HomeResponseDto> {
-    this.assertCoordinatPair(dto.latitude, dto.longitude);
+    this.assertCoordinatePair(dto.latitude, dto.longitude);
 
     const { count } = await this.client
       .from('customer_homes')
       .select('id', { count: 'exact', head: true })
       .eq('customer_id', customerId);
 
-    // The first address is always the default, regardless of what was sent.
+    // The first address is always the default, whatever the client sent.
     const isDefault = dto.isDefault === true || (count ?? 0) === 0;
 
     if (isDefault) {
@@ -68,27 +68,17 @@ export class CustomerService {
     dto: UpdateHomeDto,
   ): Promise<HomeResponseDto> {
     const home = await this.requireOwnedHome(customerId, homeId);
-    this.assertCoordinatPair(
+    this.assertCoordinatePair(
       dto.latitude ?? home.latitude ?? undefined,
       dto.longitude ?? home.longitude ?? undefined,
     );
 
     const patch: Record<string, unknown> = {};
-    if (dto.address !== undefined) {
-      patch.address = dto.address.trim();
-    }
-    if (dto.latitude !== undefined) {
-      patch.latitude = dto.latitude;
-    }
-    if (dto.longitude !== undefined) {
-      patch.longitude = dto.longitude;
-    }
-    if (dto.label !== undefined) {
-      patch.label = dto.label?.trim() ?? null;
-    }
-    if (dto.isDefault !== undefined) {
-      patch.is_default = dto.isDefault;
-    }
+    if (dto.address !== undefined) patch.address = dto.address.trim();
+    if (dto.latitude !== undefined) patch.latitude = dto.latitude;
+    if (dto.longitude !== undefined) patch.longitude = dto.longitude;
+    if (dto.label !== undefined) patch.label = dto.label?.trim() ?? null;
+    if (dto.isDefault !== undefined) patch.is_default = dto.isDefault;
 
     if (dto.isDefault === true) {
       await this.clearDefault(customerId, homeId);
@@ -151,7 +141,10 @@ export class CustomerService {
   }
 
   /** GPS may be unavailable, but a half-filled pair means something went wrong. */
-  private assertCoordinatPair(latitude: number | undefined, longitude: number | undefined): void {
+  private assertCoordinatePair(
+    latitude: number | undefined,
+    longitude: number | undefined,
+  ): void {
     if ((latitude === undefined) !== (longitude === undefined)) {
       throw new BadRequestException(
         'Both latitude and longitude must be provided together. Omit both when GPS is unavailable.',

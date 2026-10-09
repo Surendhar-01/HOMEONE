@@ -23,7 +23,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminService } from './admin.service';
-import {
+import type {
   AdminDocumentDto,
   AdminProviderDetailDto,
   ListProvidersQueryDto,
@@ -32,6 +32,8 @@ import {
   VerificationActionResponseDto,
   VerificationHistoryDto,
 } from './dto/admin.dto';
+
+const uuid = () => new ParseUUIDPipe({ version: '4' });
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -60,7 +62,7 @@ export class AdminController {
   })
   @ApiOkResponse({ type: AdminProviderDetailDto })
   @ApiNotFoundResponse({ description: 'Service provider not found.' })
-  getProvider(@Param('id', new ParseUUIDPipe({ version: '4' })) providerId: string) {
+  getProvider(@Param('id', uuid()) providerId: string) {
     return this.adminService.getProviderDetail(providerId);
   }
 
@@ -72,17 +74,14 @@ export class AdminController {
   })
   @ApiOkResponse({ type: [AdminDocumentDto] })
   @ApiNotFoundResponse({ description: 'Provider or documents not found.' })
-  getDocuments(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) providerId: string,
-    @CurrentUser('id') adminId: string,
-  ) {
+  getDocuments(@Param('id', uuid()) providerId: string, @CurrentUser('id') adminId: string) {
     return this.adminService.getProviderDocuments(providerId, adminId);
   }
 
   @Get('providers/:id/history')
   @ApiOperation({ summary: 'Audit log of verification status changes' })
   @ApiOkResponse({ type: [VerificationHistoryDto] })
-  getHistory(@Param('id', new ParseUUIDPipe({ version: '4' })) providerId: string) {
+  getHistory(@Param('id', uuid()) providerId: string) {
     return this.adminService.getHistory(providerId);
   }
 
@@ -94,10 +93,7 @@ export class AdminController {
   })
   @ApiOkResponse({ type: VerificationActionResponseDto })
   @ApiBadRequestResponse({ description: 'Provider is already approved.' })
-  approve(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) providerId: string,
-    @CurrentUser('id') adminId: string,
-  ) {
+  approve(@Param('id', uuid()) providerId: string, @CurrentUser('id') adminId: string) {
     return this.adminService.approve(providerId, adminId);
   }
 
@@ -109,7 +105,7 @@ export class AdminController {
   @ApiOkResponse({ type: VerificationActionResponseDto })
   @ApiBadRequestResponse({ description: 'Reason is required or too short.' })
   reject(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) providerId: string,
+    @Param('id', uuid()) providerId: string,
     @CurrentUser('id') adminId: string,
     @Body() dto: ReviewActionDto,
   ) {
@@ -126,7 +122,7 @@ export class AdminController {
   @ApiBadRequestResponse({ description: 'Reason is required or too short.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   block(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) providerId: string,
+    @Param('id', uuid()) providerId: string,
     @CurrentUser('id') adminId: string,
     @Body() dto: ReviewActionDto,
   ) {
