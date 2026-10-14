@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiNotFoundResponse,
@@ -21,10 +13,7 @@ import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from './notifications.service';
-import type {
-  NotificationListDto,
-  NotificationResponseDto,
-} from './dto/notification.dto';
+import { NotificationListDto, NotificationResponseDto } from './dto/notification.dto';
 
 class NotificationQueryDto {
   @ApiPropertyOptional({ example: 25, minimum: 1, maximum: 100, default: 25 })

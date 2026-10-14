@@ -21,12 +21,22 @@ import type {
   ResendOtpResponseDto,
 } from './dto/auth-response.dto';
 
+function isEmailConfirmed(user: AuthUserRecord): boolean {
+  return user.email_verified === true || !!user.email_confirmed_at;
+}
+
+function isPhoneConfirmed(user: AuthUserRecord): boolean {
+  return user.phone_verified === true || !!user.phone_confirmed_at;
+}
+
 interface AuthUserRecord {
   id: string;
   email?: string;
   phone?: string;
   email_verified?: boolean;
   phone_verified?: boolean;
+  email_confirmed_at?: string | null;
+  phone_confirmed_at?: string | null;
 }
 
 @Injectable()
@@ -83,9 +93,7 @@ export class AuthService {
     });
 
     if (signUpError || !signUp.user) {
-      throw new ConflictException(
-        signUpError?.message ?? 'Registration failed. Please try again.',
-      );
+      throw new ConflictException(signUpError?.message ?? 'Registration failed. Please try again.');
     }
 
     const user = signUp.user as AuthUserRecord;
@@ -189,7 +197,10 @@ export class AuthService {
     return this.buildSession(user, data.session);
   }
 
-  async resendOtp(email: string, tokenType: 'signup' | 'email_change'): Promise<ResendOtpResponseDto> {
+  async resendOtp(
+    email: string,
+    tokenType: 'signup' | 'email_change',
+  ): Promise<ResendOtpResponseDto> {
     const normalised = email.trim().toLowerCase();
     this.assertOtpCooldown(normalised);
 
@@ -283,8 +294,7 @@ export class AuthService {
     }
 
     return {
-      message:
-        'If an account exists for that address, password reset instructions have been sent.',
+      message: 'If an account exists for that address, password reset instructions have been sent.',
       emailSent: true,
     };
   }
@@ -341,8 +351,8 @@ export class AuthService {
     await this.serviceClient
       .from('profiles')
       .update({
-        is_email_verified: user.email_verified ?? false,
-        is_mobile_verified: user.phone_verified ?? false,
+        is_email_verified: isEmailConfirmed(user),
+        is_mobile_verified: isPhoneConfirmed(user),
       })
       .eq('id', user.id);
   }
@@ -382,8 +392,8 @@ export class AuthService {
       tokenType: (session.token_type as 'bearer') ?? 'bearer',
       userId: user.id,
       role: roles[0] ?? null,
-      emailVerified: user.email_verified ?? profile?.is_email_verified ?? false,
-      mobileVerified: user.phone_verified ?? profile?.is_mobile_verified ?? false,
+      emailVerified: isEmailConfirmed(user) || profile?.is_email_verified === true,
+      mobileVerified: isPhoneConfirmed(user) || profile?.is_mobile_verified === true,
     };
   }
 }

@@ -114,7 +114,8 @@ export class AuthController {
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Resend the verification OTP',
-    description: 'Enforces a per-email cooldown (default 60 seconds) before dispatching a new code.',
+    description:
+      'Enforces a per-email cooldown (default 60 seconds) before dispatching a new code.',
   })
   @ApiAcceptedResponse({ type: ResendOtpResponseDto })
   @ApiTooManyRequestsResponse({ description: 'Resend cooldown has not elapsed.' })

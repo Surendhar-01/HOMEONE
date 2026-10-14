@@ -23,7 +23,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminService } from './admin.service';
-import type {
+import {
   AdminDocumentDto,
   AdminProviderDetailDto,
   ListProvidersQueryDto,
@@ -42,6 +42,23 @@ const uuid = () => new ParseUUIDPipe({ version: '4' });
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  @Get('stats')
+  @ApiOperation({
+    summary: 'Dashboard statistics from live counts',
+    description: 'Every number comes from a COUNT query. Nothing is fabricated.',
+  })
+  @ApiOkResponse({ description: 'Real totals for users, providers, bookings, reviews, catalog.' })
+  stats() {
+    return this.adminService.getStats();
+  }
+
+  @Get('bookings')
+  @ApiOperation({ summary: 'Monitor all bookings with optional status filter' })
+  @ApiOkResponse({ description: 'Bookings newest first, with customer names.' })
+  listBookings(@Query() query: ListProvidersQueryDto, @Query('status') status?: string) {
+    return this.adminService.listBookings(query.limit ?? 50, query.offset ?? 0, status);
+  }
 
   @Get('providers/pending')
   @ApiOperation({

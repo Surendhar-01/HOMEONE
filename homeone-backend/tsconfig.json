@@ -10,6 +10,7 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
+    "noEmit": true,
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,

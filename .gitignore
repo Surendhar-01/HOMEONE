@@ -27,3 +27,7 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Expo & TypeScript
+expo-env.d.ts
+*.tsbuildinfo

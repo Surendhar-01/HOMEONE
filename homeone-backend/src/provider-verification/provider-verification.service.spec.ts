@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { ProviderVerificationService } from '../provider-verification/provider-verification.service';
+import { ProviderVerificationService } from './provider-verification.service';
 import { VERIFICATION_MESSAGES } from '../common/constants/verification-messages';
 import type { ServiceProviderRow } from '../database/database.types';
 
@@ -30,32 +30,18 @@ const provider = (overrides: Partial<ServiceProviderRow> = {}): ServiceProviderR
  * segments these tests exercise are implemented.
  */
 class FakeTable {
-  readonly updates: Record<string, unknown>[] = [];
   readonly inserts: Record<string, unknown>[] = [];
+  private current: Record<string, unknown>[] = [];
 
-  constructor(
-    private readonly rows: Record<string, unknown>[],
-    private readonly tableName: string,
-  ) {}
+  constructor(private readonly rows: Record<string, unknown>[]) {}
 
   select() {
     return this;
   }
 
-  eq(column: string, value: unknown) {
-    this.current = this.rows.filter((row) => row[column] === value);
+  in(column: string, values: unknown[]) {
+    this.current = this.rows.filter((row) => values.includes(row[column]));
     return this;
-  }
-
-  private current: Record<string, unknown>[] = [];
-
-  maybeSingle() {
-    const row = this.current[0] ?? null;
-    return Promise.resolve({ data: row, error: null });
-  }
-
-  single() {
-    return Promise.resolve({ data: this.current[0] ?? null, error: null });
   }
 
   order() {
@@ -66,16 +52,6 @@ class FakeTable {
     return Promise.resolve({ data: this.current, error: null });
   }
 
-  in(column: string, values: unknown[]) {
-    this.current = this.rows.filter((row) => values.includes(row[column]));
-    return this;
-  }
-
-  update(patch: Record<string, unknown>) {
-    this.pendingPatch = patch;
-    return this;
-  }
-
   insert(row: Record<string, unknown> | Record<string, unknown>[]) {
     const rows = Array.isArray(row) ? row : [row];
     this.inserts.push(...rows);
@@ -83,18 +59,44 @@ class FakeTable {
     return Promise.resolve({ data: rows, error: null });
   }
 
-  delete() {
-    return Promise.resolve({ data: [], error: null });
+  update(patch: Record<string, unknown>) {
+    const table = this;
+    return {
+      eq(column: string, value: unknown) {
+        const matched = table.rows.filter((row) => row[column] === value);
+        for (const row of matched) {
+          Object.assign(row, patch);
+        }
+        return Promise.resolve({ data: matched, error: null });
+      },
+    };
   }
 
-  pendingPatch: Record<string, unknown> = {};
+  delete() {
+    return {
+      eq: () => Promise.resolve({ data: [], error: null }),
+    };
+  }
+
+  eq(column: string, value: unknown) {
+    this.current = this.rows.filter((row) => row[column] === value);
+    return this;
+  }
+
+  maybeSingle() {
+    return Promise.resolve({ data: this.current[0] ?? null, error: null });
+  }
+
+  single() {
+    return Promise.resolve({ data: this.current[0] ?? null, error: null });
+  }
 }
 
 describe('ProviderVerificationService', () => {
   const buildService = (row: ServiceProviderRow) => {
-    const providers = new FakeTable([{ ...row }], 'service_providers');
-    const history = new FakeTable([], 'provider_verification_history');
-    const notifications = new FakeTable([], 'notifications');
+    const providers = new FakeTable([{ ...row }]);
+    const history = new FakeTable([]);
+    const notifications = new FakeTable([]);
 
     const client = {
       from: (table: string) => {

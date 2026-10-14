@@ -1,7 +1,6 @@
 -- ============================================================================
 -- HOMEONE - seed.sql
--- Reference catalog data (service domains + services) and the in-app copy for
--- the four verification statuses. Idempotent: safe to re-run.
+-- Reference catalog data (service domains + services). Idempotent: safe to re-run.
 -- ============================================================================
 
 INSERT INTO public.service_domains (domain_name) VALUES

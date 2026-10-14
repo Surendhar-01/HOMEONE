@@ -8,6 +8,7 @@ export const BUCKETS = {
   profilePhotos: 'profile-photos',
   providerDocuments: 'provider-documents',
   providerWorkPhotos: 'provider-work-photos',
+  bookingPhotos: 'booking-photos',
 } as const;
 
 export type BucketName = (typeof BUCKETS)[keyof typeof BUCKETS];
@@ -19,6 +20,10 @@ const ALLOWED_MIME: Record<BucketName, { images: string[]; documents: string[] }
     documents: ['application/pdf'],
   },
   [BUCKETS.providerWorkPhotos]: {
+    images: ['image/jpeg', 'image/jpg', 'image/png'],
+    documents: [],
+  },
+  [BUCKETS.bookingPhotos]: {
     images: ['image/jpeg', 'image/jpg', 'image/png'],
     documents: [],
   },
@@ -103,11 +108,7 @@ export class StorageService {
   }
 
   /** Short-lived signed URL. Never cache these on the client. */
-  async createSignedUrl(
-    bucket: BucketName,
-    path: string,
-    expiresInSeconds = 300,
-  ): Promise<string> {
+  async createSignedUrl(bucket: BucketName, path: string, expiresInSeconds = 300): Promise<string> {
     const { data, error } = await this.client.storage
       .from(bucket)
       .createSignedUrl(path, expiresInSeconds);

@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { SupabaseServiceClient } from '../database/supabase.module';
 import { SUPABASE_ANON_CLIENT, SUPABASE_SERVICE } from '../database/supabase.module';
@@ -44,6 +38,7 @@ export interface ProviderProfileView {
   latitude: number | null;
   longitude: number | null;
   hasCertificate: boolean;
+  isOnline: boolean;
   verificationStatus: VerificationStatus;
   verificationReason: string | null;
   verifiedAt: string | null;
@@ -173,7 +168,10 @@ export class ProvidersService {
     assertNoError(providerError);
 
     const providerId = (provider as { id: string }).id;
-    await this.replaceSkills(providerId, services.map((s) => s.id));
+    await this.replaceSkills(
+      providerId,
+      services.map((s) => s.id),
+    );
     await this.replaceWorkingHours(providerId, dto.workingHours ?? defaultWorkingHours());
 
     const { error: otpError } = await this.anonClient.auth.resend({ type: 'signup', email });
@@ -308,7 +306,10 @@ export class ProvidersService {
   async updateSkills(userId: string, dto: UpdateSkillsDto): Promise<ProviderProfileView> {
     const provider = await this.requireProvider(userId);
     const services = await this.resolveServices(provider.domain_id, dto.skills);
-    await this.replaceSkills(provider.id, services.map((s) => s.id));
+    await this.replaceSkills(
+      provider.id,
+      services.map((s) => s.id),
+    );
     return this.getMyProvider(userId);
   }
 
@@ -318,6 +319,16 @@ export class ProvidersService {
   ): Promise<ProviderProfileView> {
     const provider = await this.requireProvider(userId);
     await this.replaceWorkingHours(provider.id, dto.workingHours);
+    return this.getMyProvider(userId);
+  }
+
+  async setOnline(userId: string, isOnline: boolean): Promise<ProviderProfileView> {
+    const provider = await this.requireProvider(userId);
+    const { error } = await this.serviceClient
+      .from('service_providers')
+      .update({ is_online: isOnline })
+      .eq('id', provider.id);
+    assertNoError(error);
     return this.getMyProvider(userId);
   }
 
@@ -342,9 +353,7 @@ export class ProvidersService {
       throw new BadRequestException('A government ID document must be uploaded.');
     }
     if (documentType === 'CERTIFICATE' && !noCertificate && !file) {
-      throw new BadRequestException(
-        'Upload a certificate file or declare that none is available.',
-      );
+      throw new BadRequestException('Upload a certificate file or declare that none is available.');
     }
 
     if (noCertificate) {
@@ -469,10 +478,7 @@ export class ProvidersService {
           .select('*')
           .eq('provider_id', provider.id)
           .order('day_of_week'),
-        this.serviceClient
-          .from('provider_documents')
-          .select('*')
-          .eq('provider_id', provider.id),
+        this.serviceClient.from('provider_documents').select('*').eq('provider_id', provider.id),
       ]);
 
     const serviceIds = ((skills ?? []) as ProviderSkillRow[]).map((row) => row.service_id);
@@ -500,6 +506,7 @@ export class ProvidersService {
       latitude: provider.latitude,
       longitude: provider.longitude,
       hasCertificate: provider.has_certificate,
+      isOnline: provider.is_online ?? true,
       verificationStatus: provider.verification_status,
       verificationReason: provider.verification_reason,
       verifiedAt: provider.verified_at,
@@ -588,26 +595,21 @@ export class ProvidersService {
     assertNoError(error);
   }
 
-  private async replaceWorkingHours(
-    providerId: string,
-    hours: WorkingHourDto[],
-  ): Promise<void> {
+  private async replaceWorkingHours(providerId: string, hours: WorkingHourDto[]): Promise<void> {
     const { error: deleteError } = await this.serviceClient
       .from('provider_working_hours')
       .delete()
       .eq('provider_id', providerId);
     assertNoError(deleteError);
 
-    const { error } = await this.serviceClient
-      .from('provider_working_hours')
-      .insert(
-        hours.map((hour) => ({
-          provider_id: providerId,
-          day_of_week: hour.dayOfWeek,
-          start_time: hour.startTime,
-          end_time: hour.endTime,
-        })),
-      );
+    const { error } = await this.serviceClient.from('provider_working_hours').insert(
+      hours.map((hour) => ({
+        provider_id: providerId,
+        day_of_week: hour.dayOfWeek,
+        start_time: hour.startTime,
+        end_time: hour.endTime,
+      })),
+    );
     assertNoError(error);
   }
 

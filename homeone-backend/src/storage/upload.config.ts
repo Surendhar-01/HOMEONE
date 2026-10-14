@@ -18,9 +18,7 @@ export function memoryImageUpload(maxBytes: number): MulterOptions {
       const mime = (file.mimetype || '').toLowerCase();
       if (!IMAGE_MIME.includes(mime)) {
         cb(
-          new BadRequestException(
-            `Only JPG, JPEG and PNG images are allowed. Received "${mime}".`,
-          ),
+          new BadRequestException(`Only JPG, JPEG and PNG images are allowed. Received "${mime}".`),
           false,
         );
         return;
@@ -58,9 +56,7 @@ export function memoryWorkPhotoUpload(maxBytes: number): MulterOptions {
       const mime = (file.mimetype || '').toLowerCase();
       if (!IMAGE_MIME.includes(mime)) {
         cb(
-          new BadRequestException(
-            `Only JPG, JPEG and PNG images are allowed. Received "${mime}".`,
-          ),
+          new BadRequestException(`Only JPG, JPEG and PNG images are allowed. Received "${mime}".`),
           false,
         );
         return;

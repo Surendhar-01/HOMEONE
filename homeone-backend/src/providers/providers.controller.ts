@@ -36,8 +36,9 @@ import {
   requireWorkPhotos,
 } from '../storage/upload.config';
 import { ProvidersService } from './providers.service';
-import type {
+import {
   RegisterProviderDto,
+  UpdateAvailabilityDto,
   UpdateProviderDto,
   UpdateSkillsDto,
   UpdateWorkingHoursDto,
@@ -117,7 +118,12 @@ export class ProvidersController {
     @Body() dto: UploadProviderDocumentDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.providersService.attachDocument(userId, dto.documentType, file ?? null, dto.noCertificate === true);
+    return this.providersService.attachDocument(
+      userId,
+      dto.documentType,
+      file ?? null,
+      dto.noCertificate === true,
+    );
   }
 
   @Get('documents')
@@ -128,10 +134,7 @@ export class ProvidersController {
     description: 'Signed URLs expire after 5 minutes and are never cached by the app.',
   })
   @ApiOkResponse({ description: 'Document metadata plus signed URLs.' })
-  async listDocuments(
-    @CurrentUser('id') userId: string,
-    @Query('signedUrls') signedUrls?: string,
-  ) {
+  async listDocuments(@CurrentUser('id') userId: string, @Query('signedUrls') signedUrls?: string) {
     const provider = await this.providersService.requireProvider(userId);
     return this.providersService.listDocuments(provider.id, signedUrls !== 'false');
   }
@@ -139,7 +142,10 @@ export class ProvidersController {
   @Post('work-photos')
   @Roles('PROFESSIONAL')
   @UseInterceptors(
-    FileFieldsInterceptor([{ name: 'files', maxCount: 10 }], memoryWorkPhotoUpload(MAX_IMAGE_BYTES)),
+    FileFieldsInterceptor(
+      [{ name: 'files', maxCount: 10 }],
+      memoryWorkPhotoUpload(MAX_IMAGE_BYTES),
+    ),
   )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -182,6 +188,17 @@ export class ProvidersController {
   @ApiBadRequestResponse({ description: 'Invalid time range or duplicate day.' })
   updateWorkingHours(@CurrentUser('id') userId: string, @Body() dto: UpdateWorkingHoursDto) {
     return this.providersService.updateWorkingHours(userId, dto);
+  }
+
+  @Put('availability')
+  @Roles('PROFESSIONAL')
+  @ApiOperation({
+    summary: 'Set online / offline availability',
+    description: 'Controls whether the professional appears as available for new requests.',
+  })
+  @ApiOkResponse({ description: 'Updated provider profile.' })
+  updateAvailability(@CurrentUser('id') userId: string, @Body() dto: UpdateAvailabilityDto) {
+    return this.providersService.setOnline(userId, dto.isOnline);
   }
 
   @Get('verification-status')

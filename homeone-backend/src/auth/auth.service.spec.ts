@@ -32,24 +32,13 @@ describe('AuthService OTP resend cooldown', () => {
     jest.clearAllMocks();
 
     const moduleRef = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({
-          isGlobal: true,
-          load: [authConfig],
-          envFilePath: [],
-        }),
-      ],
+      imports: [ConfigModule.forRoot({ isGlobal: true, load: [authConfig], envFilePath: [] })],
       providers: [
         AuthService,
         { provide: 'SUPABASE_SERVICE', useValue: serviceClient },
         { provide: 'SUPABASE_ANON_CLIENT', useValue: anonClient },
       ],
-    })
-      .overrideProvider('SUPABASE_SERVICE')
-      .useValue(serviceClient)
-      .overrideProvider('SUPABASE_ANON_CLIENT')
-      .useValue(anonClient)
-      .compile();
+    }).compile();
 
     service = moduleRef.get(AuthService);
   });

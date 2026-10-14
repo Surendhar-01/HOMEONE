@@ -60,6 +60,7 @@ export interface ServiceProviderRow {
   latitude: number | null;
   longitude: number | null;
   has_certificate: boolean;
+  is_online: boolean;
   verification_status: VerificationStatus;
   verification_reason: string | null;
   verified_at: string | null;
@@ -110,6 +111,76 @@ export interface NotificationRow {
   message: string;
   notification_type: string;
   is_read: boolean;
+  created_at: string;
+}
+
+export type BookingStatus =
+  | 'REQUESTED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'ON_THE_WAY'
+  | 'ARRIVED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED';
+
+export type BookingUrgency = 'NORMAL' | 'HIGH' | 'URGENT';
+
+export interface MainCategoryRow {
+  id: string;
+  category_name: string;
+  icon: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface BookingRow {
+  id: string;
+  customer_id: string;
+  provider_id: string;
+  service_id: string;
+  home_id: string | null;
+  address_snapshot: string;
+  latitude: number | null;
+  longitude: number | null;
+  scheduled_at: string;
+  problem_description: string;
+  urgency: BookingUrgency;
+  status: BookingStatus;
+  status_updated_at: string;
+  idempotency_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingStatusHistoryRow {
+  id: string;
+  booking_id: string;
+  old_status: BookingStatus | null;
+  new_status: BookingStatus;
+  changed_by: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface BookingPhotoRow {
+  id: string;
+  booking_id: string;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  uploaded_at: string;
+}
+
+export interface ReviewRow {
+  id: string;
+  booking_id: string;
+  provider_id: string;
+  customer_id: string;
+  rating: number;
+  comment: string | null;
   created_at: string;
 }
 

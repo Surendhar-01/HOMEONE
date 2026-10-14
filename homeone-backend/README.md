@@ -22,6 +22,7 @@ No Docker. No mock auth, no hardcoded OTPs, no seeded user accounts.
 ```bash
 npm install
 cp .env.example .env      # then fill in your Supabase keys
+npm run db:migrate        # tables + buckets + seed (needs DATABASE_URL)
 npm run start:dev
 ```
 
@@ -32,42 +33,36 @@ npm run start:dev
 
 ### Supabase setup
 
-1. **Apply the migrations** — either link the folder with the Supabase CLI
+1. **Apply the migrations** — easiest from here:
 
    ```bash
-   supabase link --project-ref <your-project-ref>
-   supabase db push
+   npm run db:migrate   # supabase/migrations/*.sql, then supabase/seed.sql
    ```
 
-   or paste the two files into **Supabase Studio → SQL Editor**, in order:
-   - `supabase/migrations/0001_init.sql` – tables, constraints, indexes, RLS
-   - `supabase/migrations/0002_storage_buckets.sql` – private buckets, storage policies, `promote_to_admin()`
+   or use the Supabase CLI (`supabase db push`), or paste the files into
+   **Supabase Studio → SQL Editor** in order. `npm run db:verify` prints row
+   counts and confirms RLS is on for every table.
 
-2. **Seed the catalog** — run `supabase/seed.sql` (12 service domains and their
-   skills). Idempotent.
-
-3. **Supabase Auth settings** (Authentication → Providers)
+2. **Supabase Auth settings** (Authentication → Providers)
    - Enable **Email**
    - Keep "Confirm email" **enabled** (OTP verification is required)
    - Optional: enable an SMS provider and set `AUTH_OTP_CHANNEL=sms`
 
-4. **Environment** — copy the project URL and keys from
-   **Project Settings → API** into `.env`:
+3. **Environment** — copy the project URL and keys from
+   **Project Settings → API** into `.env`. The direct Postgres host is
+   IPv6-only on many networks, so `DATABASE_URL` should use the IPv4 pooler:
 
    ```ini
-   SUPABASE_URL=https://xxxx.supabase.co
-   SUPABASE_PUBLISHABLE_KEY=...        # shipped to the app
-   SUPABASE_SERVICE_ROLE_KEY=...       # server only
+   DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
    ```
 
-   `SUPABASE_JWT_SECRET` is only needed for projects still on legacy HS256
-   tokens. Modern projects use asymmetric keys, which the backend validates via
-   the project's JWKS endpoint, so the variable can stay blank.
+   `SUPABASE_JWT_SECRET` is only needed for legacy HS256 tokens. Modern
+   projects use asymmetric keys, which the backend validates via the project's
+   JWKS endpoint, so the variable can stay blank.
 
 ### Create the first admin
 
-There is no public admin registration. Bootstrap one from the Supabase CLI or
-SQL editor:
+There is no public admin registration. Bootstrap one from the SQL editor:
 
 ```sql
 select public.promote_to_admin('admin@yourdomain.com');
@@ -95,12 +90,13 @@ Logging in with the wrong `expectedRole` returns **403**.
 
 All paths are relative to `http://localhost:8081/api/v1`.
 `🔓` = public, everything else requires `Authorization: Bearer <accessToken>`.
+From an Android emulator the host maps to `http://10.0.2.2:8081/api/v1`.
 
 ### Authentication
 
 | Method | Path | Access | Notes |
 | --- | --- | --- | --- |
-| POST | `/auth/register-profile` | 🔓 | Customer registration. Also accepts `role: "PROFESSIONAL"` for the shared flow. |
+| POST | `/auth/register-profile` | 🔓 | Customer registration. Also accepts `role: "PROFESSIONAL"`. |
 | POST | `/auth/verify-otp` | 🔓 | Verifies the 6-digit code, returns a session. |
 | POST | `/auth/resend-otp` | 🔓 | 60 s per-email cooldown (configurable). |
 | POST | `/auth/login` | 🔓 | Email or mobile + password, role-checked. |
@@ -117,7 +113,7 @@ All paths are relative to `http://localhost:8081/api/v1`.
 | GET | `/users/me` | any | Profile + signed profile-photo URL. |
 | PATCH | `/users/me` | any | Full name, mobile number. |
 | POST | `/users/me/profile-photo` | any | `multipart/form-data`, field `file`. JPG/JPEG/PNG, 5 MB. |
-| DELETE | `/users/me/profile-photo` | any | Also available (removes the file and clears the path). |
+| DELETE | `/users/me/profile-photo` | any | Removes the file and clears the path. |
 
 ### Customer (role `CUSTOMER`)
 
@@ -202,7 +198,7 @@ Errors come from `AllExceptionsFilter`:
 ```
 
 `password`, `confirmPassword`, `token`, `otp`, `code` and `authorization` keys
-are redacted from logged/returned bodies.
+are redacted from returned bodies.
 
 ---
 
@@ -215,7 +211,7 @@ POST /auth/register-profile  (agreedToTerms: true)
       → Supabase Auth account + profiles + user_roles(CUSTOMER)
       → OTP emailed
 POST /auth/verify-otp        → accessToken + refreshToken
-GET  /users/me               → profile
+GET  /users/me
 POST /users/me/profile-photo → optional
 POST /customer/homes         → address + live GPS
 ```
@@ -253,7 +249,7 @@ Transitions go through `ProviderVerificationService` only, which writes
 `provider_verification_history` (old status, new status, reason, reviewer,
 timestamp) and creates the notification in the same call. Providers cannot set
 their own status — there is no endpoint for it. A blocked provider cannot be
-approved directly; it must be moved out of `BLOCKED` first.
+approved directly.
 
 ---
 
@@ -270,9 +266,6 @@ All three are private (`public = false`). Paths are namespaced by user id
 ever returned as a public URL — the backend issues 5-minute (documents) or
 15-minute (profile) signed URLs after an ownership or admin check.
 
-Re-uploading a government ID or certificate replaces the previous file: the old
-object is deleted and the row removed.
-
 ---
 
 ## 7. Security
@@ -281,27 +274,20 @@ object is deleted and the row removed.
   project's JWKS, falling back to HS256 when `SUPABASE_JWT_SECRET` is set.
   `aud = authenticated` and the issuer are both pinned.
 - **Authentication is on by default** — `JwtAuthGuard` is registered globally;
-  a route must be marked `@Public()` to skip it. `RolesGuard` is global too, so a
-  new controller is protected unless it says otherwise.
-- **Ownership** — home addresses, provider documents, notifications and
-  provider records are all scoped to `user_id` in the query, and cross-account
-  access returns 403/404 rather than data.
+  a route must be marked `@Public()` to skip it. `RolesGuard` is global too.
+- **Ownership** — homes, documents, notifications and provider records are all
+  scoped to the verified `user_id`; cross-account access returns 403/404.
 - **Admin-only actions** — verification transitions live in
-  `ProviderVerificationService`, which is only reachable from `AdminController`
-  behind `@Roles('ADMIN')`. The acting admin's id is taken from the verified
-  token, never the request body.
-- **Rate limiting** — a global 120 req/min budget, with tighter per-route limits
-  on registration (5/10 min), login (10/5 min), OTP resend (5/10 min) and
-  password recovery (5/15 min).
-- **Validation** — global `ValidationPipe` with `whitelist` and
-  `forbidNonWhitelisted`, so unknown fields are rejected. Password policy
-  (≥ 8 chars, upper + lower + digit), mobile format, email format, positive
-  years of experience, and end-time-after-start-time are all enforced before any
+  `ProviderVerificationService`, reachable only from `AdminController` behind
+  `@Roles('ADMIN')`. The acting admin's id comes from the verified token.
+- **Rate limiting** — global 120 req/min, tighter per-route limits on
+  registration, login, OTP resend and password recovery.
+- **Validation** — global `ValidationPipe` (`whitelist` +
+  `forbidNonWhitelisted`). Password policy, mobile format, email format,
+  non-negative experience, and end-time-after-start-time are enforced before any
   database call.
 - **Uploads** — in-memory Multer with MIME allowlists and hard size caps,
   re-checked in `StorageService`.
-- **Password recovery** — the endpoint returns an identical response for known
-  and unknown addresses so it cannot enumerate accounts.
 - **No secrets in logs** — passwords, OTPs, tokens, government ID images are
   never logged. The service-role key never leaves the server.
 
@@ -320,17 +306,17 @@ or RPC in this project stores them.
 | `SUPABASE_PUBLISHABLE_KEY` | — | Client key used for Auth flows (required) |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Server-only key, bypasses RLS (required) |
 | `SUPABASE_JWT_SECRET` | _(blank)_ | Only for legacy HS256 tokens |
+| `DATABASE_URL` | _(blank)_ | Used only by `npm run db:migrate` / `db:verify` |
 | `CORS_ORIGINS` | _(blank = allow all)_ | Comma-separated allowed origins |
-| `PASSWORD_RESET_REDIRECT_TO` | `homeone://reset-password` | Deep link for reset emails |
 | `AUTH_OTP_CHANNEL` | `email` | `email` or `sms` |
-| `AUTH_OTP_LENGTH` | `6` | Documentational; Supabase owns the real length |
 | `AUTH_OTP_RESEND_COOLDOWN_SECONDS` | `60` | Resend cooldown |
 | `UPLOAD_MAX_IMAGE_BYTES` | `5242880` | 5 MB |
 | `UPLOAD_MAX_DOCUMENT_BYTES` | `10485760` | 10 MB |
 
-`SUPABASE_SERVICE_ROLE_KEY` must never be shipped in the React Native bundle.
-The app only ever needs `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` for direct
-Auth calls; everything else goes through this backend.
+Two `@nestjs/config` gotchas handled in this codebase: pass custom validators
+via `validate:` (a `validationSchema` that is not Joi silently drops the file
+values), and look namespaced config up with the plain namespace name, not
+`registerAs(...).KEY` (which is the internal `CONFIGURATION(name)` token).
 
 ---
 
@@ -343,7 +329,7 @@ homeone-backend/
 │   ├── app.module.ts               # module graph + global guard/interceptor/filter
 │   ├── config/                     # typed config + env validation
 │   ├── database/                   # Supabase clients, row types, error mapping
-│   ├── auth/                       # register, OTP, login, password recovery
+│   ├── auth/                       # register, OTP, login, recovery
 │   │   ├── guards/                 # JwtAuthGuard, RolesGuard (registered globally)
 │   │   └── dto/
 │   ├── users/                      # profile + profile photo
@@ -362,13 +348,10 @@ homeone-backend/
 │   ├── migrations/0001_init.sql    # tables, constraints, indexes, RLS
 │   ├── migrations/0002_storage_buckets.sql
 │   └── seed.sql                    # service domains + skills
+├── scripts/                        # db-migrate, db-verify (pooler-based)
 ├── test/                           # e2e suites (bootstrap, role guards)
 └── .env.example
 ```
-
-`provider-documents` and `provider-verification` are standalone modules imported
-by both `ProvidersModule` and `AdminModule`, so the owner path and the reviewer
-path share one access-control implementation and one audit-log implementation.
 
 ---
 
@@ -382,46 +365,12 @@ npm run test:e2e    # boot, guards, DTO validation
 npm run build       # compile to dist/
 ```
 
-Current state, from the last run in this repo:
-
-```
-npm test        → 5 suites, 43 tests passing
-npm run test:e2e → 2 suites, 21 tests passing
-npm run typecheck → clean
-npm run lint      → clean
-```
-
-What the suites cover:
-
-- **Unit** — password policy, mobile normalisation, ISO date parsing,
-  working-hours validation, and the full verification state machine (approve /
-  reject / block, reason required, no-op rejected, blocked cannot be approved,
-  audit row + notification written).
-- **OTP cooldown** — first send succeeds, immediate resend is refused, resend is
-  allowed after the cooldown, cooldown is tracked per email and normalised.
-- **e2e boot** — the dependency graph resolves, `/health` answers, protected
-  routes 401 without a token, and invalid registration payloads are rejected
-  before any Supabase call.
-- **e2e roles** — 401 without a token on every protected route, 403 for
-  cross-role access in all combinations, and 400 for bad payloads on
-  homes / working-hours / document type / years of experience / admin reason.
-
-### What has **not** been verified
-
-There is no test run against a real Supabase project in this repo. Everything
-that depends on live Supabase — actual OTP delivery, sign-up, password
-recovery, storage upload, signed URLs, RLS, and the admin review round trip —
-has **not** been exercised. The unit tests stub the Supabase client, and the e2e
-tests stop at the guard and validation layers.
-
-To verify against a real project:
-
-1. Apply the migrations and `seed.sql`.
-2. Copy `.env.example` to `.env` with real keys.
-3. `npm run start:dev`, then walk the flows in §5 in Swagger.
-4. `select * from provider_verification_history order by reviewed_at desc;` to
-   confirm the audit log, and check Supabase Storage → each private bucket for
-   the uploaded objects.
+Unit tests cover password policy, mobile normalisation, ISO date parsing,
+working-hours validation, the verification state machine, and the OTP resend
+cooldown. E2E tests cover boot, 401/403 guard behaviour, and DTO validation.
+Nothing outside the validation and guard layers is safe to assume without a
+live Supabase project; `npm run db:verify` confirms the schema after applying
+migrations.
 
 ---
 

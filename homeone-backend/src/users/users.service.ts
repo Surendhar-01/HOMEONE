@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { SupabaseServiceClient } from '../database/supabase.module';
 import { SUPABASE_SERVICE } from '../database/supabase.module';
 import type { ProfileRow } from '../database/database.types';
@@ -97,10 +91,7 @@ export class UsersService {
     return this.getProfile(userId);
   }
 
-  async uploadProfilePhoto(
-    userId: string,
-    file: Express.Multer.File,
-  ): Promise<ProfileResponseDto> {
+  async uploadProfilePhoto(userId: string, file: Express.Multer.File): Promise<ProfileResponseDto> {
     const uploaded = await this.storage.uploadImage(userId, BUCKETS.profilePhotos, file);
 
     const { data: current } = await this.client

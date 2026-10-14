@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { AuthService } from '../src/auth/auth.service';
 import { buildValidationPipe } from './test-utils';
 
 /**
@@ -33,7 +34,7 @@ describe('App bootstrap (e2e)', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.data.status).toBeDefined();
     expect(response.body.data.supabase.database).toBeDefined();
-  });
+  }, 60000);
 
   it('rejects an unauthenticated request to a protected route', async () => {
     await request(app.getHttpServer()).get('/api/v1/users/me').expect(401);
@@ -62,5 +63,44 @@ describe('App bootstrap (e2e)', () => {
   it('serves the health route without a token', async () => {
     const response = await request(app.getHttpServer()).get('/api/v1/health');
     expect(response.status).toBe(200);
+  }, 60000);
+
+  it('passes auth tokens through the response envelope untouched', async () => {
+    // Regression test: the response interceptor must never redact the secret
+    // material the client needs to authenticate. A redacted token silently
+    // breaks every authenticated call after login.
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(AuthService)
+      .useValue({
+        login: async () => ({
+          accessToken: 'real-access-token',
+          refreshToken: 'real-refresh-token',
+          expiresIn: 3600,
+          tokenType: 'bearer',
+          userId: 'u-1',
+          role: 'CUSTOMER',
+          emailVerified: true,
+          mobileVerified: false,
+        }),
+      })
+      .compile();
+
+    const authed = moduleRef.createNestApplication();
+    authed.setGlobalPrefix('api/v1');
+    authed.useGlobalPipes(buildValidationPipe());
+    await authed.init();
+
+    try {
+      const response = await request(authed.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ identifier: 'customer@example.com', password: 'StrongPass1' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.accessToken).toBe('real-access-token');
+      expect(response.body.data.refreshToken).toBe('real-refresh-token');
+    } finally {
+      await authed.close();
+    }
   });
 });

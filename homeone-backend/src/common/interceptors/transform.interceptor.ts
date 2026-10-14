@@ -10,37 +10,26 @@ export interface ApiEnvelope<T> {
   timestamp: string;
 }
 
-const REDACTED_KEYS = /^(password|confirmPassword|token|accessToken|refreshToken|otp|code|authorization)$/i;
-
-function redact(body: unknown): unknown {
-  if (body === null || typeof body !== 'object') {
-    return body;
-  }
-  if (Array.isArray(body)) {
-    return body.map(redact);
-  }
-  const output: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
-    output[key] = REDACTED_KEYS.test(key) ? '[REDACTED]' : redact(value);
-  }
-  return output;
-}
-
 /**
  * Wraps successful responses in `{ success, data, timestamp }` so the React
  * Native app can rely on one shape for every endpoint.
+ *
+ * NOTE: response bodies are passed through untouched. An earlier version
+ * redacted `accessToken`/`refreshToken` here, which silently broke login for
+ * every client - the secret material the app needs to authenticate never
+ * arrived. Redaction belongs in log pipelines, never on the wire.
  */
 @Injectable()
 export class TransformInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
-    const isHealthCheck = /^\/api\/v1\/health/.test(request.url);
+    void request;
 
     return next.handle().pipe(
       map((data) => {
         const payload: ApiEnvelope<unknown> = {
           success: true,
-          data: isHealthCheck ? data : redact(data),
+          data,
           timestamp: new Date().toISOString(),
         };
         return payload;

@@ -118,11 +118,7 @@ export class ProviderVerificationService {
     return this.transition(providerId, adminId, 'APPROVED', null);
   }
 
-  reject(
-    providerId: string,
-    adminId: string,
-    reason: string,
-  ): Promise<VerificationActionResult> {
+  reject(providerId: string, adminId: string, reason: string): Promise<VerificationActionResult> {
     return this.transition(providerId, adminId, 'REJECTED', reason);
   }
 
@@ -162,7 +158,9 @@ export class ProviderVerificationService {
     }
 
     if (newStatus === 'APPROVED' && oldStatus === 'BLOCKED') {
-      throw new ForbiddenException('A blocked provider cannot be approved directly. Unblock first.');
+      throw new ForbiddenException(
+        'A blocked provider cannot be approved directly. Unblock first.',
+      );
     }
 
     const reviewedAt = new Date().toISOString();
@@ -177,16 +175,14 @@ export class ProviderVerificationService {
       .eq('id', providerId);
     assertNoError(updateError);
 
-    const { error: historyError } = await this.client
-      .from('provider_verification_history')
-      .insert({
-        provider_id: providerId,
-        old_status: oldStatus,
-        new_status: newStatus,
-        reason: reason ?? null,
-        reviewed_by: adminId,
-        reviewed_at: reviewedAt,
-      });
+    const { error: historyError } = await this.client.from('provider_verification_history').insert({
+      provider_id: providerId,
+      old_status: oldStatus,
+      new_status: newStatus,
+      reason: reason ?? null,
+      reviewed_by: adminId,
+      reviewed_at: reviewedAt,
+    });
     assertNoError(historyError);
 
     const copy = VERIFICATION_MESSAGES[newStatus];

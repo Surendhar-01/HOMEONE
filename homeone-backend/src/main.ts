@@ -15,6 +15,20 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix(GLOBAL_PREFIX);
+  // TEMPORARY: log every request with outcome for UI-tap tracing.
+  app.use((req: { method: string; url: string }, res: {
+    statusCode: number;
+    on: (event: string, cb: () => void) => void;
+  }, next: () => void) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      require('node:fs').appendFileSync(
+        'C:\\Users\\suren\\AppData\\Local\\Temp\\api-debug.log',
+        `${new Date().toISOString()} ${req.method} ${req.url} -> ${res.statusCode} ${Date.now() - start}ms\n`,
+      );
+    });
+    next();
+  });
   app.useBodyParser('json', { limit: '1mb' });
   app.useBodyParser('urlencoded', { limit: '1mb', extended: true });
 

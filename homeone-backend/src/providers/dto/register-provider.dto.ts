@@ -221,6 +221,12 @@ export class UploadProviderDocumentDto {
   noCertificate?: boolean;
 }
 
+export class UpdateAvailabilityDto {
+  @ApiProperty({ example: true, description: 'True to receive new booking requests.' })
+  @IsBoolean()
+  isOnline!: boolean;
+}
+
 export class VerificationStatusResponseDto {
   @ApiProperty({ enum: ['PENDING', 'APPROVED', 'REJECTED', 'BLOCKED'] })
   verificationStatus!: VerificationStatus;

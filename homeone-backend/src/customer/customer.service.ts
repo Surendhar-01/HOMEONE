@@ -141,10 +141,7 @@ export class CustomerService {
   }
 
   /** GPS may be unavailable, but a half-filled pair means something went wrong. */
-  private assertCoordinatePair(
-    latitude: number | undefined,
-    longitude: number | undefined,
-  ): void {
+  private assertCoordinatePair(latitude: number | undefined, longitude: number | undefined): void {
     if ((latitude === undefined) !== (longitude === undefined)) {
       throw new BadRequestException(
         'Both latitude and longitude must be provided together. Omit both when GPS is unavailable.',

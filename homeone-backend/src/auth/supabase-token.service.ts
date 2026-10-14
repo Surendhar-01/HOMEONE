@@ -18,6 +18,7 @@ export class SupabaseTokenService {
 
   constructor(
     @Inject(SUPABASE_SERVICE) private readonly serviceClient: SupabaseServiceClient,
+    /** Project base URL, e.g. https://<ref>.supabase.co (no /auth/v1 suffix). */
     private readonly authUrl: string,
     private readonly jwtSecret: string,
     private readonly audience: string,
@@ -50,9 +51,7 @@ export class SupabaseTokenService {
 
   private async verifyWithSecret(token: string): Promise<JWTPayload> {
     if (!this.jwtSecret) {
-      throw new Error(
-        'Token signature could not be verified with the configured credentials.',
-      );
+      throw new Error('Token signature could not be verified with the configured credentials.');
     }
     const { payload } = await jwtVerify(token, new TextEncoder().encode(this.jwtSecret), {
       audience: this.audience,

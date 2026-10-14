@@ -28,7 +28,7 @@ type SupabaseConfig = ConfigType<typeof supabaseConfig>;
       useFactory: (serviceClient: SupabaseServiceClient, config: SupabaseConfig) =>
         new SupabaseTokenService(
           serviceClient,
-          `${config.url}/auth/v1`,
+          config.url,
           config.jwtSecret,
           'authenticated',
           `${config.url}/auth/v1`,

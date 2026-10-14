@@ -1,7 +1,7 @@
 -- ============================================================================
 -- HOMEONE - 0001_init.sql
 -- Auth + registration + verification schema for Supabase PostgreSQL.
--- Apply with: supabase db push   (or paste into Supabase Studio -> SQL Editor)
+-- Apply with: npm run db:migrate   (or paste into Supabase Studio -> SQL Editor)
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

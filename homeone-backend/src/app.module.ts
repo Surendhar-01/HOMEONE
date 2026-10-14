@@ -18,6 +18,10 @@ import { CustomerModule } from './customer/customer.module';
 import { ProvidersModule } from './providers/providers.module';
 import { ServiceDomainsModule } from './service-domains/service-domains.module';
 import { ServicesModule } from './services/services.module';
+import { CategoriesModule } from './categories/categories.module';
+import { ProfessionalsModule } from './professionals/professionals.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { ReviewsModule } from './reviews/reviews.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
 
@@ -30,8 +34,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       // `validate` (not `validationSchema`): @nestjs/config v3 expects a Joi
       // schema under `validationSchema`, and silently drops the file values if
       // given anything else. Our validator throws with a readable message.
-      validate: (config: Record<string, unknown>) =>
-        new EnvironmentValidator().validate(config),
+      validate: (config: Record<string, unknown>) => new EnvironmentValidator().validate(config),
       envFilePath: ['.env.local', '.env'],
     }),
     ThrottlerModule.forRoot({
@@ -47,6 +50,10 @@ import { NotificationsModule } from './notifications/notifications.module';
     ProvidersModule,
     ServiceDomainsModule,
     ServicesModule,
+    CategoriesModule,
+    ProfessionalsModule,
+    BookingsModule,
+    ReviewsModule,
     AdminModule,
     NotificationsModule,
   ],

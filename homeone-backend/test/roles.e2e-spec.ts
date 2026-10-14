@@ -86,15 +86,12 @@ describe('Role authorization (e2e)', () => {
   });
 
   describe('role restrictions', () => {
-    it('blocks a CUSTOMER from /customer/homes list', async () => {
+    it('401s when no principal can be resolved', async () => {
       asUser(null);
-      // With no principal the guard rejects before the roles guard runs.
       await server().get('/api/v1/customer/homes').set('Authorization', 'Bearer stub').expect(401);
     });
 
     it('returns 403 when a customer hits an admin-only route', async () => {
-      // AuthService is stubbed out for these routes only if the request reaches
-      // the controller; the roles guard rejects first, so no Supabase call occurs.
       asUser(customer);
       await server()
         .get('/api/v1/admin/providers/pending')

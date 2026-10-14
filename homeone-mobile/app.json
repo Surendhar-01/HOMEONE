@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "HOMEONE",
+    "slug": "homeone-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "homeone",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.homeone.mobile"
+    },
+    "android": {
+      "package": "com.homeone.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow HOMEONE to access your photos for profile pictures, ID documents and work photos.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-document-picker",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow HOMEONE to use your location to save your home and business addresses."
+        }
+      ],
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
+  }
+}
