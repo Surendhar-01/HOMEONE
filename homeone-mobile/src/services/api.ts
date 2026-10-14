@@ -1,9 +1,11 @@
+import { Platform } from 'react-native';
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { appStorage } from './storage';
 import type { ApiEnvelope } from '../types';
 
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8081/api/v1';
+  process.env.EXPO_PUBLIC_API_URL ??
+  (Platform.OS === 'web' ? 'http://localhost:5000/api/v1' : 'http://10.0.2.2:5000/api/v1');
 
 export const ACCESS_TOKEN_KEY = 'homeone.accessToken';
 export const REFRESH_TOKEN_KEY = 'homeone.refreshToken';
@@ -60,7 +62,7 @@ apiClient.interceptors.response.use(
 
 /** Typed GET/POST/PATCH/PUT/DELETE that unwraps the backend `{ success, data }` envelope. */
 export async function api<T>(path: string, config: AxiosRequestConfig = {}): Promise<T> {
-  const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  const token = await appStorage.getItem(ACCESS_TOKEN_KEY);
   return apiWithToken<T>(path, token, config);
 }
 
@@ -91,7 +93,7 @@ export async function apiUpload<T>(
   fields: Record<string, string | boolean | undefined>,
   files: { field: string; uri: string; name: string; mimeType: string }[],
 ): Promise<T> {
-  const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  const token = await appStorage.getItem(ACCESS_TOKEN_KEY);
   if (!token) throw new ApiError(401, ['Not signed in.']);
 
   const form = new FormData();

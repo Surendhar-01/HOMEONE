@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import { appStorage } from '../services/storage';
 import { api, apiWithToken, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from '../services/api';
 import type { AuthPrincipal, AuthSession, UserRole } from '../types';
 
@@ -29,8 +29,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hydrate: async () => {
     try {
       const [access, refresh] = await Promise.all([
-        SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
-        SecureStore.getItemAsync(REFRESH_TOKEN_KEY),
+        appStorage.getItem(ACCESS_TOKEN_KEY),
+        appStorage.getItem(REFRESH_TOKEN_KEY),
       ]);
       if (!access || !refresh) {
         set({ ready: true });
@@ -59,13 +59,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           method: 'POST',
           data: { refreshToken: refresh },
         });
-        await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, next.accessToken);
-        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, next.refreshToken);
+        await appStorage.setItem(ACCESS_TOKEN_KEY, next.accessToken);
+        await appStorage.setItem(REFRESH_TOKEN_KEY, next.refreshToken);
         const restored = await fetchPrincipal(next.accessToken);
         set({ session: next, principal: restored, ready: true });
       } catch {
-        await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+        await appStorage.deleteItem(ACCESS_TOKEN_KEY);
+        await appStorage.deleteItem(REFRESH_TOKEN_KEY);
         set({ session: null, principal: null, ready: true });
       }
     } catch {
@@ -74,8 +74,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signIn: async (session: AuthSession) => {
-    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, session.accessToken);
-    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, session.refreshToken);
+    await appStorage.setItem(ACCESS_TOKEN_KEY, session.accessToken);
+    await appStorage.setItem(REFRESH_TOKEN_KEY, session.refreshToken);
     const principal = await fetchPrincipal(session.accessToken);
     set({ session, principal });
   },
@@ -90,8 +90,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }).catch(() => null);
       }
     } finally {
-      await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      await appStorage.deleteItem(ACCESS_TOKEN_KEY);
+      await appStorage.deleteItem(REFRESH_TOKEN_KEY);
       set({ session: null, principal: null });
     }
   },
